@@ -6,9 +6,9 @@ Then recursively writes descriptions of scenes with Large Language Models and Im
 
 The lowest level clips are [captioned with BLIP2](https://github.com/ExponentialML/Video-BLIP2-Preprocessor).
 
-[Oobabooga's text generation webui](https://github.com/oobabooga/text-generation-webui) is used as the API endpoint.
+The descriptions are gathered in a list and then the LLM is asked to describe the overall scene. Then the process continutes until the top level.
 
-The descriptions are gathered in a list and then the LLM is asked to describe the overall scene. Then the process continutes until
+Any OpenAI-like text completion model can be used for this. In my tests [Oobabooga's text generation webui](https://github.com/oobabooga/text-generation-webui) is used as the API endpoint.
 
 User can also provide the master prompt to help the model and edit the resulting descriptions with a Gradio demo interface.
 

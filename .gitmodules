@@ -1,0 +1,3 @@
+[submodule "Video-BLIP2-Preprocessor"]
+	path = Video-BLIP2-Preprocessor
+	url = https://github.com/ExponentialML/Video-BLIP2-Preprocessor

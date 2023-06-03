@@ -1,2 +1,21 @@
 # video2scenario
- Recursively writes descriptions of scenes with LLMs using BLIP2 captions for ground level frames
+
+Forms a tree-like folder dataset with L parts at the lowest level.
+
+Then recursively writes descriptions of scenes with Large Language Models and Image Captioning Models.
+
+The lowest level clips are [captioned with BLIP2](https://github.com/ExponentialML/Video-BLIP2-Preprocessor).
+
+[Oobabooga's text generation webui](https://github.com/oobabooga/text-generation-webui) is used as the API endpoint.
+
+The descriptions are gathered in a list and then the LLM is asked to describe the overall scene. Then the process continutes until
+
+User can also provide the master prompt to help the model and edit the resulting descriptions with a Gradio demo interface.
+
+There is also an option to store the resulting corrected output for better fine-tuning the models, for example, using a LoRA.
+
+The Gradio interface has a dropdown to select each description - clip pair, on each level.
+
+---
+
+The goal of this subproject is to make a DiffusionOverDiffusion dataset to train [InfiNet](https://github.com/kabachuha/InfiNet) and the future complex script-based text2video models with minimal human labeling efforts.

@@ -5,7 +5,7 @@ import cv2
 from tqdm import tqdm
 from pathlib import Path
 
-def chop_video(video_path: str, folder:str, L: int, start_frame:int) -> int:
+def chop_video_inner(video_path: str, folder:str, L: int, start_frame:int) -> int:
     if not os.path.exists(video_path):
         raise FileNotFoundError(f"Video file '{video_path}' not found.")
 
@@ -68,7 +68,7 @@ def chop_video(video_path: str, folder:str, L: int, start_frame:int) -> int:
     video.release()
     return total_frames
 
-def stuff(video_path: str, L: int, only_once = True):
+def chop_video(video_path: str, L: int, only_once = True):
 
     only_once = True
 
@@ -85,18 +85,18 @@ def stuff(video_path: str, L: int, only_once = True):
     #os.mkdir(dir_name)
     vid_name = os.path.split(video_path)[1]
 
-    scenario = 0
+    #scenario = 0
     start_frame = 0
 
     while start_frame < total_frames - L:
 
-        dir_name = f"scenario_{scenario}"
+        dir_name = ""
         os.mkdir(os.path.join(cur_dir_name, dir_name))
         video_path_new = os.path.join(cur_dir_name, dir_name, vid_name)
         os.rename(video_path, video_path_new)
         video_path = video_path_new
-        start_frame += chop_video(video_path, dir_name, L, start_frame)
-        scenario += 1
+        start_frame += chop_video_inner(video_path, dir_name, L, start_frame)
+        #scenario += 1
 
         if only_once:
             break
@@ -105,14 +105,14 @@ def stuff(video_path: str, L: int, only_once = True):
     os.mkdir(orig_name)
 
     for i in os.listdir(os.getcwd()):
-        if i.startswith('scenario_'):
-            os.rename(i, os.path.join(orig_name, i))
+        #if i.startswith('scenario_'):
+        os.rename(i, os.path.join(orig_name, i))
 
 def main():
     parser = argparse.ArgumentParser(description="Chop a video file into subsets of frames.")
     parser.add_argument("video_file", help="Path to the video file.")
     parser.add_argument("--L", help="Num of splits on each level.")
-    parser.add_argument("--subscenariosplit", help="Should it split ", action='store_true', default=False)
+    #parser.add_argument("--subscenariosplit", help="Should it split ", action='store_true', default=False)
     args = parser.parse_args()
     stuff(args.video_file, int(args.L), bool(args.subscenariosplit != None and args.subscenariosplit))
 

@@ -1,6 +1,7 @@
 import requests, json
 from video_chop import chop_video
 from chops_to_folder_dataset import move_the_files
+from Video_BLIP2_Preprocessor.preprocess import PreProcessVideos
 
 # Setting up the LLM interactions
  
@@ -43,7 +44,13 @@ def textgen(prompt):
             raise e
     return result
 
-def generate():
+def process_video():
+    #clear video
+    #chop_video
+    #caption video
+    ...
+
+def run():
     print("Hey!")
 
 # Gradio interface setup if launching as an app
@@ -125,7 +132,7 @@ if __name__ == "__main__":
                             # will chop if not exist
                         with gr.Row(variant='compact'):
                             # chop video
-                            gr.Checkbox(label='chop video', value=True, interactive=True)
+                            gr.Checkbox(label='(re)chop video', value=True, interactive=True)
                             # clear info checkbox
                             gr.Checkbox(label='clear info', interactive=True)
                         with gr.Row(variant='compact'):
@@ -152,5 +159,10 @@ if __name__ == "__main__":
 
                     with gr.Tab(label="Video export settings"):
                         gr.Markdown("TODO")
+                        overwrite_dims = ...
+                        w = ...
+                        h = ...
+                        overwrite_fps = ...
+                        fps = ...
 
     interface.launch(share=args["share"], server_name=args['server_name'], server_port=args['server_port'])

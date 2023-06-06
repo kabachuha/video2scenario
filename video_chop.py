@@ -1,3 +1,6 @@
+# Copyright (C) 2023 by Artem Khrapov (kabachuha)
+# Read LICENSE for usage terms.
+
 import os
 import sys
 import argparse

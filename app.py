@@ -1,3 +1,6 @@
+# Copyright (C) 2023 by Artem Khrapov (kabachuha)
+# Read LICENSE for usage terms.
+
 import requests, json
 from video_chop import chop_video
 from chops_to_folder_dataset import move_the_files

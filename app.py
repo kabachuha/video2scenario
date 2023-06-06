@@ -1,7 +1,7 @@
 import requests, json
 from video_chop import chop_video
 from chops_to_folder_dataset import move_the_files
-from Video_BLIP2_Preprocessor.preprocess import PreProcessVideos
+from video_blip2_preprocessor.preprocess import PreProcessVideos
 
 # Setting up the LLM interactions
  

@@ -10,17 +10,18 @@ from PIL import Image
 def write_as_video(output_filename, video_frames, overwrite_dims, width, height, fps):
     if overwrite_dims:
         height, width, _ = video_frames[0].shape
-    #fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    #out = cv2.VideoWriter(output_filename, fourcc, fps, (width, height))
-    #for j in video_frames:
-    #    out.write(j)
-    video_frames = [Image.fromarray(cv2.cvtColor(j, cv2.COLOR_BGR2RGB)) for j in video_frames]
-    if overwrite_dims:
-        video_frames = [j.resize(width, height) for j in video_frames]
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    out = cv2.VideoWriter(output_filename, fourcc, fps, (height, width))
+    for j in video_frames:
+       j = cv2.resize(j, (height, width), interpolation= cv2.INTER_CUBIC)
+       out.write(j)
+    # video_frames = [Image.fromarray(cv2.cvtColor(j, cv2.COLOR_BGR2RGB)) for j in video_frames]
+    # if overwrite_dims:
+    #     video_frames = [j.resize(width, height) for j in video_frames]
 
-    video_frames[0].save(output_filename, save_all=True, append_images=video_frames[1:])
+    # video_frames[0].save(output_filename, save_all=True, append_images=video_frames[1:])
 
-    #out.release()
+    out.release()
 
 def read_first_frame(video_path):
     patience = 5

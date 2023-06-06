@@ -59,15 +59,16 @@ if __name__ == "__main__":
                         # Depth slider
                         # 0 - L max
                         with gr.Row(variant='compact'):
-                            gr.Slider(label="Depth", minimum=0, maximum=12, step=1)
+                            gr.Slider(label="Depth", minimum=0, maximum=12, step=1, interactive=True)
                         # Batch slider
                         with gr.Row(variant='compact'):
-                            gr.Slider(label="Batch", minimum=0, maximum=144, step=1)
+                            gr.Slider(label="Subdivision", minimum=0, maximum=144, step=1, interactive=True)
                         with gr.Row(variant='compact'):
                             # textbox with selected description
                             gr.TextArea(label="Description", lines=4, interactive=True)
                         with gr.Row(variant='compact'):
                             gr.Button('Regenerate description')
+                            gr.Button('Save description')
                     with gr.Tab(label='Textgen config'):
                         with gr.Row(variant='compact'):
                             # settings path
@@ -84,40 +85,56 @@ if __name__ == "__main__":
                                     gr.TextArea(label="Scene", lines=5, interactive=True)
                                 with gr.Row(variant='compact'):
                                     gr.TextArea(label="Synopsis", lines=5, interactive=True)
+                            with gr.Tab(label='Frame captioning'):
+                                gr.Markdown('Frame autocaptioning (BLIP2) settings')
+                                gr.Markdown('Uses bisection for more than 1 prompt/division')
                                 with gr.Row(variant='compact'):
-                                    gr.Markdown('Frame autocaptioning (BLIP2) settings')
+                                    gr.Slider(label='Autocaptioned frames', value=2, step=1, interactive=True, minimum=1, maximum=12) # will be populater with L
+                                    gr.Radio(label='Padding', value='left', choices=["left", "right", "none"], interactive=True)
                                 with gr.Row(variant='compact'):
-                                    gr.Slider(label="Min prompt words", minimum=1, maximum=15, value=15, step=1)
-                                    gr.Slider(label="Max prompt words", minimum=10, maximum=45, value=30, step=1)
+                                    gr.Slider(label="Min words", minimum=1, maximum=15, value=15, step=1, interactive=True)
+                                    gr.Slider(label="Max words", minimum=10, maximum=45, value=30, step=1, interactive=True)
 
                     with gr.Tab(label='Batch processing'):
-                        gr.Markdown('Todo')
+                        gr.Markdown('Process a list of .json captioning config files:')
+                        with gr.Row(variant='compact'):
+                            gr.Textbox(label="Configs folder", interactive=True)
+                            gr.Button(value='Start', variant='primary')
+                        gr.Markdown('Process a folder of videos using the current settings:')
+                        with gr.Row(variant='compact'):
+                            gr.Textbox(label="Videos folder", interactive=True)
+                            gr.Button(value='Start', variant='primary')
             with gr.Column(scale=1, variant='panel'):
-                with gr.Tabs():
+                with gr.Tabs(selected=1):
                     with gr.Tab(label="Keyframes viewer"):
                         # list of keyframes at each selected layer
                         keyframes = gr.Gallery()
-                    with gr.Tab(label="Video splitter"):
+                        gr.HTML("") # placeholder for previewable Video Base64 HTML
+                    with gr.Tab(id=1, label="Video splitter"):
                         with gr.Row(variant='compact'):
-                            with gr.Column(variant='compact'):
-                                # L / path to video
-                                with gr.Row(variant='compact'):
-                                    gr.Number(label="L", value=12, precision=0)
-                                with gr.Row(variant='compact'):
-                                    gr.Textbox(label="Path to whole video", interactive=True)
-                            with gr.Column(variant='compact'):
+                            # L / path to video
+                            with gr.Row(variant='compact'):
+                                gr.Number(label="L", value=12, precision=0, interactive=True)
+                                gr.Textbox(label="Path to the whole video, if not splitted yet", interactive=True)
+                            with gr.Row(variant='compact'):
                                 # splitted video folderpath
                                 gr.Textbox(label="Splitted video folderpath", interactive=True)
+                                gr.Textbox(label="Target folder dataset path", interactive=True)
                             # will chop if not exist
                         with gr.Row(variant='compact'):
                             # chop video
-                            gr.Checkbox(label='chop video')
+                            gr.Checkbox(label='chop video', value=True, interactive=True)
                             # clear info checkbox
-                            gr.Checkbox(label='clear info')
+                            gr.Checkbox(label='clear info', interactive=True)
+                        with gr.Row(variant='compact'):
                             # caption keyframes checkbox
-                            gr.Checkbox(label='caption keyframes')
+                            gr.Checkbox(label='caption keyframes', value=True, interactive=True)
                             # textgen checkbox
-                            gr.Checkbox(label='textgen scenes')
+                            gr.Checkbox(label='textgen scenes', value=True, interactive=True)
+                        with gr.Row(variant='compact'):
+                            # export checkbox
+                            gr.Checkbox(label='export to dataset', interactive=True)
+                            gr.Checkbox(label='delete after export', interactive=True)
                         with gr.Row(variant='compact'):
                             with gr.Column(variant='compact'):
                                 with gr.Row(variant='compact'):
@@ -125,14 +142,13 @@ if __name__ == "__main__":
                                     # whole
                                     # this level
                                     #
-                                    gr.Radio(label="Apply to:", value="Whole video", choices=["Whole video", "This level"])
+                                    gr.Radio(label="Apply to:", value="Whole video", choices=["Whole video", "This level"], interactive=True)
                             with gr.Column(variant='compact'):
                                 with gr.Row(variant='compact'):
                                     # generate button
-                                    gen_btn = gr.Button('Start', variant="primary")
-                    with gr.Tab(label="Export"):
-                        with gr.Row(variant='compact'):
-                            gr.Textbox(label="Target folder dataset path", interactive=True)
-                            data_btn = gr.Button('Compose dataset', variant="primary")
+                                    gen_btn = gr.Button('Load/Process', variant="primary")
+
+                    with gr.Tab(label="Video export settings"):
+                        gr.Markdown("TODO")
 
     interface.launch(share=args["share"], server_name=args['server_name'], server_port=args['server_port'])

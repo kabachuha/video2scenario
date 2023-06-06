@@ -114,7 +114,7 @@ def main():
     parser.add_argument("--L", help="Num of splits on each level.")
     #parser.add_argument("--subscenariosplit", help="Should it split ", action='store_true', default=False)
     args = parser.parse_args()
-    stuff(args.video_file, int(args.L), bool(args.subscenariosplit != None and args.subscenariosplit))
+    chop_video(args.video_file, int(args.L))#, bool(args.subscenariosplit != None and args.subscenariosplit))
 
 if __name__ == "__main__":
     main()

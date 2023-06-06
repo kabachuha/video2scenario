@@ -51,6 +51,8 @@ def generate():
 if __name__ == "__main__":
     import gradio as gr
 
+    # TODO: if less than 2 secs of video, export as GIF
+
     with gr.Blocks(analytics_enabled=False) as interface:
         with gr.Row().style(equal_height=False, variant='compact'):
             with gr.Column(scale=1, variant='panel'):
@@ -114,7 +116,7 @@ if __name__ == "__main__":
                         with gr.Row(variant='compact'):
                             # L / path to video
                             with gr.Row(variant='compact'):
-                                gr.Number(label="L", value=12, precision=0, interactive=True)
+                                gr.Number(label="L (each level division number)", value=12, precision=0, interactive=True)
                                 gr.Textbox(label="Path to the whole video, if not splitted yet", interactive=True)
                             with gr.Row(variant='compact'):
                                 # splitted video folderpath

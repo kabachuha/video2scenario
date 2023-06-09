@@ -84,6 +84,8 @@ def chop_video(video_path: str, L: int, only_once = True):
 
     cur_dir_name = os.path.split(video_path)[0]#Path(video_path).stem
     orig_name = Path(video_path).stem
+    outpath = os.path.join(cur_dir_name, 'split_videos', orig_name)
+    os.makedirs(outpath)
     #dir_name = cur_dir_name
     #os.mkdir(dir_name)
     vid_name = os.path.split(video_path)[1]
@@ -92,13 +94,7 @@ def chop_video(video_path: str, L: int, only_once = True):
     start_frame = 0
 
     while start_frame < total_frames - L:
-
-        dir_name = ""
-        os.mkdir(os.path.join(cur_dir_name, dir_name))
-        video_path_new = os.path.join(cur_dir_name, dir_name, vid_name)
-        os.rename(video_path, video_path_new)
-        video_path = video_path_new
-        start_frame += chop_video_inner(video_path, dir_name, L, start_frame)
+        start_frame += chop_video_inner(video_path, outpath, L, start_frame)
         #scenario += 1
 
         if only_once:
@@ -106,10 +102,6 @@ def chop_video(video_path: str, L: int, only_once = True):
     
     os.rename(video_path, os.path.join(os.getcwd(), vid_name))
     os.mkdir(orig_name)
-
-    for i in os.listdir(os.getcwd()):
-        #if i.startswith('scenario_'):
-        os.rename(i, os.path.join(orig_name, i))
 
 def main():
     parser = argparse.ArgumentParser(description="Chop a video file into subsets of frames.")

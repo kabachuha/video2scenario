@@ -9,8 +9,10 @@ from tqdm import tqdm
 import shutil
 from pathlib import Path
 from PIL import Image
+import time, logging
 
 def write_as_video(output_filename, video_frames, overwrite_dims, width, height, fps):
+    
     if overwrite_dims:
         height, width, _ = video_frames[0].shape
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
@@ -35,7 +37,7 @@ def read_first_frame(video_path):
         ret, frame = video.read()
         p += 1
         if p > patience:
-            raise Exception(f'Cannot read the video at {video_path}')
+            raise Exception(f'Cannot read video at {video_path}')
     video.release()
     return frame
 
@@ -43,7 +45,17 @@ def get_fps(video_path):
     video = cv2.VideoCapture(video_path)
     fps = int(video.get(cv2.CAP_PROP_FPS))
     video.release()
-    return fps   
+    return fps
+
+def calculate_depth(init_path):
+    max_depth = 20
+    depth_name = init_path
+
+    for d in range(0, max_depth):
+        depth_name = os.path.join(depth_name, f'depth_{d}')
+        if not os.path.exists(depth_name):
+            L = len(os.listdir(init_path)) // 2
+            return d, L
 
 def move_the_files(init_path, L, depth, overwrite_dims, width, height, overwrite_fps, fps):
 

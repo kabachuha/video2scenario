@@ -83,7 +83,7 @@ if __name__ == "__main__":
     # returns depth, L, description, keyframes, base64 html
     def refresh_descr(init_path, d, scene, action):
 
-        logger.info(f'Reading video tree dataset at {init_path}, depth {d}, part {scene}, subset {action}')
+        logger.info(f'Refreshing video tree item at {init_path}, depth {d}, part {scene}, subset {action}')
 
         rets = []
         assert os.path.exists(init_path) and os.path.isdir(init_path)
@@ -103,7 +103,7 @@ if __name__ == "__main__":
         action_txt = os.path.join(path, f'subset_{scene}.txt')
         action_mp4 = os.path.join(path, f'subset_{scene}.mp4')
 
-        with open(action_txt) as descr:
+        with open(action_txt, 'r', encoding='utf-8') as descr:
             rets.append(descr.read()) # descr
 
         if d == max_d:
@@ -122,14 +122,28 @@ if __name__ == "__main__":
         frames = [Image.fromarray(img) for img in frames]
         
         rets.append(frames) # keyframes
-
-        #mp4 = open(action_mp4, 'rb').read()
-        #dataurl = "data:video/mp4;base64," + b64encode(mp4).decode()
-
-        #rets.append(f'<video controls loop><source src="{dataurl}" type="video/mp4"></video><br>') #keyframes_base64
         rets.append(action_mp4)
 
         return rets
+    
+    def write_descr(descr, init_path, depth, scene, action):
+        logger.info(f'Writing video descr at {init_path}, depth {depth}, part {scene}, subset {action}')
+
+        assert os.path.exists(init_path) and os.path.isdir(init_path)
+        # show description
+        max_d, L = calculate_depth(init_path)
+
+        d = min(depth, max_d)
+        scene = min(scene, L**(d-1) if d > 1 else 1)
+        action = min(action, L if d > 0 else 1)
+
+        depth_name = init_path
+        for i in range(d+1):
+            depth_name = os.path.join(depth_name, f'depth_{i}')
+        path = os.path.join(depth_name, f'part_{scene}')
+        action_txt = os.path.join(path, f'subset_{scene}.txt')
+        with open(action_txt, 'w', encoding='utf-8') as descr_f:
+            descr_f.write(descr)
     
     with gr.Blocks(analytics_enabled=False) as interface:
         with gr.Row().style(equal_height=False, variant='compact'):
@@ -216,7 +230,7 @@ if __name__ == "__main__":
                         with gr.Row(variant='compact'):
                             # splitted video folderpath
                             chop_whole_vid_path = gr.Textbox(label="Path to the whole video, if not splitted yet", interactive=True)
-                            chop_split_path = gr.Textbox(label="Splitted video folderpath", value='split_videos/bad_small1/', interactive=True)
+                            chop_split_path = gr.Textbox(label="Splitted video folderpath", value='split_videos/test/', interactive=True)
                             chop_trg_path = gr.Textbox(label="Target folder dataset path", interactive=True)
                             # will chop if not exist
                         with gr.Row(variant='compact'):
@@ -257,6 +271,7 @@ if __name__ == "__main__":
         # interactions
         descr_depth.change(on_depth_change, inputs=[descr_depth, chop_L], outputs=[descr_part, descr_subset])
         descr_load.click(refresh_descr, outputs=[descr_depth, chop_L, descr, keyframes, keyframes_vid64], inputs=[chop_split_path, descr_depth, descr_part, descr_subset])
+        descr_save_btn.click(write_descr, inputs=[descr, chop_split_path, descr_depth, descr_part, descr_subset], outputs=[])
         #depth, L, description, video, keyframes, gallery, base64 html
 
     interface.launch(share=args["share"], server_name=args['server_name'], server_port=args['server_port'])

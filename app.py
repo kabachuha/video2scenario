@@ -3,8 +3,27 @@
 
 import requests, json
 from video_chop import chop_video
-from chops_to_folder_dataset import move_the_files
+from chops_to_folder_dataset import move_the_files, calculate_depth
 from video_blip2_preprocessor.preprocess import PreProcessVideos
+import time, logging, coloredlogs
+import os
+
+logger = None
+
+if __name__ == "__main__":
+    coloredlogs.install()
+    timestring = time.strftime('%Y%m%d%H%M%S')
+    logger = logging.getLogger(__name__)
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.INFO)
+    fh = logging.FileHandler(f'logs/{timestring}.log')
+    fh.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    fh.setFormatter(formatter)
+    formatter_hf = logging.Formatter('%(levelname)s - %(message)s')
+    ch.setFormatter(formatter_hf)
+    logger.addHandler(fh)
+    logger.addHandler(ch)
 
 # Setting up the LLM interactions
 
@@ -42,10 +61,11 @@ def textgen(prompt):
     return result
 
 def process_video():
+    
+    ...
     #clear video
     #chop_video
     #caption video
-    ...
 
 def run():
     print("Hey!")
@@ -55,6 +75,27 @@ def run():
 if __name__ == "__main__":
     import gradio as gr
 
+    def on_depth_change(d, L):
+        return [gr.update(maximum=L**(d-1) if d > 1 else 1), gr.update(maximum=L if d > 0 else 1)]
+    
+    def refresh_descr(init_path, d, scene, action):
+        rets = []
+        assert os.path.exists(init_path) and os.path.isdir(init_path)
+        # show description
+        max_d, L = calculate_depth(init_path)
+        rets.append(gr.update(maximum=max_d)) # update max_depth, will cause updates to other elements
+        rets.append(L) # update L
+
+        d = min(d, max_d)
+        scene = min(scene, L**(d-1) if d > 1 else 1)
+        action = min(action, L if d > 0 else 1)
+
+        path = os.getcwd()
+        for i in range(d):
+            path = os.path.join(path, f'depth_{i}')
+
+        rets.append(L) # update L
+    
     with gr.Blocks(analytics_enabled=False) as interface:
         with gr.Row().style(equal_height=False, variant='compact'):
             with gr.Column(scale=1, variant='panel'):
@@ -66,7 +107,9 @@ if __name__ == "__main__":
                             descr_depth = gr.Slider(label="Depth", value=0, minimum=0, maximum=12, step=1, interactive=True)
                         # Batch slider
                         with gr.Row(variant='compact'):
-                            descr_subdiv = gr.Slider(label="Subdivision", value=0, minimum=0, maximum=144, step=1, interactive=True)
+                            descr_part = gr.Slider(label="Scene", value=0, minimum=0, maximum=12, step=1, interactive=True)
+                        with gr.Row(variant='compact'):
+                            descr_subset = gr.Slider(label="Action", value=0, minimum=0, maximum=12, step=1, interactive=True)
                         with gr.Row(variant='compact'):
                             # textbox with selected description
                             descr = gr.TextArea(label="Description", lines=4, interactive=True)
@@ -137,7 +180,7 @@ if __name__ == "__main__":
                         with gr.Row(variant='compact'):
                             # splitted video folderpath
                             chop_whole_vid_path = gr.Textbox(label="Path to the whole video, if not splitted yet", interactive=True)
-                            chop_split_path = gr.Textbox(label="Splitted video folderpath", interactive=True)
+                            chop_split_path = gr.Textbox(label="Splitted video folderpath", value='folder_dataset', interactive=True)
                             chop_trg_path = gr.Textbox(label="Target folder dataset path", interactive=True)
                             # will chop if not exist
                         with gr.Row(variant='compact'):
@@ -165,7 +208,8 @@ if __name__ == "__main__":
                             with gr.Column(variant='compact'):
                                 with gr.Row(variant='compact'):
                                     # generate button
-                                    do_btn = gr.Button('Load/Process', variant="primary")
+                                    do_btn = gr.Button('Process', variant="primary")
+                            do_infobox = gr.Markdown('', visible=False)
 
                     with gr.Tab(label="Video export settings"):
                         exp_overwrite_dims = gr.Checkbox(label="Override dims", value=True, interactive=True)
@@ -173,5 +217,8 @@ if __name__ == "__main__":
                         exp_h = gr.Slider(label="Height", value=432, minimum=64, maximum=1920, step=64, interactive=True)
                         exp_overwrite_fps = gr.Checkbox(label="Override fps", value=False, interactive=True)
                         exp_fps = gr.Slider(label="FPS", value=12, minimum=1, maximum=144, step=1, interactive=True)
+        
+        # interactions
+        descr_depth.change(on_depth_change, inputs=[descr_depth, chop_L], outputs=[descr_part, descr_subset])
 
     interface.launch(share=args["share"], server_name=args['server_name'], server_port=args['server_port'])

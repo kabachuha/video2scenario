@@ -13,12 +13,12 @@ import time, logging
 
 def write_as_video(output_filename, video_frames, overwrite_dims, width, height, fps):
     
-    if overwrite_dims:
+    if not overwrite_dims:
         height, width, _ = video_frames[0].shape
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    out = cv2.VideoWriter(output_filename, fourcc, fps, (height, width))
+    out = cv2.VideoWriter(output_filename, fourcc, fps, (width, height))
     for j in video_frames:
-       j = cv2.resize(j, (height, width), interpolation= cv2.INTER_CUBIC)
+       j = cv2.resize(j, (width, height), interpolation= cv2.INTER_CUBIC)
        out.write(j)
     # video_frames = [Image.fromarray(cv2.cvtColor(j, cv2.COLOR_BGR2RGB)) for j in video_frames]
     # if overwrite_dims:
@@ -40,6 +40,17 @@ def read_first_frame(video_path):
             raise Exception(f'Cannot read video at {video_path}')
     video.release()
     return frame
+
+def read_all_frames(video_path):
+    video = cv2.VideoCapture(video_path)
+    total_frames = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
+    video_frames = []
+
+    for _ in range(total_frames):
+        ret, frame = video.read()
+        video_frames.append(frame)
+    video.release()
+    return video_frames
 
 def get_fps(video_path):
     video = cv2.VideoCapture(video_path)
@@ -64,7 +75,7 @@ def move_the_files(init_path, L, depth, overwrite_dims, width, height, overwrite
     depth_name = init_path
 
     t_counter=0
-    for d in range(0, depth):
+    for d in range(0, depth+1):
         for j in range(L**(d-1) if d > 1 else 1):
             for i in range(L if d > 0 else 1):
                 t_counter+=1
@@ -91,13 +102,26 @@ def move_the_files(init_path, L, depth, overwrite_dims, width, height, overwrite
                 if overwrite_fps:
                     fps = get_fps(os.path.join(next_part_path, f'subset_{0}.mp4'))
                 
-                write_as_video(os.path.join(folder_dataset_path, f'depth_{d}_part_{j}_subset{i+L*j}.gif'), L_frames, overwrite_dims, width, height, fps)
+                write_as_video(os.path.join(folder_dataset_path, f'depth_{d}_part_{j}_subset{i+L*j}.mp4'), L_frames, overwrite_dims, width, height, fps)
                 shutil.copy(txt_path, os.path.join(folder_dataset_path, f'depth_{d}_part_{j}_subset{i+L*j}.txt'))
 
                 tq.set_description(f'Depth {d}, part {j}, subset{i}')
                 #tq.set_description(os.path.join(next_part_path, f'subset_{0}.mp4'))
                 tq.update(1)
-    
+
+    # collecting the deepest level L-frame long mp4s as is
+    d = depth
+    depth_name = os.path.join(depth_name, f'depth_{d}')
+    for j in range(L**(d-1) if d > 1 else 1):
+        part_path = os.path.join(depth_name, f'part_{j}')
+        for i in range(L if d > 0 else 1):
+            txt_path = os.path.join(part_path, f'subset_{i}.txt')
+            mp4_path = os.path.join(part_path, f'subset_{i}.mp4')
+
+            write_as_video(os.path.join(folder_dataset_path, f'depth_{d}_part_{j}_subset{i+L*j}.mp4'), read_all_frames(mp4_path), overwrite_dims, width, height, fps)
+            shutil.copy(txt_path, os.path.join(folder_dataset_path, f'depth_{d}_part_{j}_subset{i+L*j}.txt'))
+            tq.set_description(f'Depth {d}, part {j}, subset{i}')
+            tq.update(1)
     tq.close() 
 
 def main():

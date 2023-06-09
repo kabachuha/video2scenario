@@ -101,7 +101,7 @@ if __name__ == "__main__":
             depth_name = os.path.join(depth_name, f'depth_{i}')
         path = os.path.join(depth_name, f'part_{scene}')
         action_txt = os.path.join(path, f'subset_{scene}.txt')
-        action_mp4 = os.path.join(path, f'subset_{scene}.mp4')
+        action_mp4 = os.path.join(path, f'subset_{action}.mp4')
 
         with open(action_txt, 'r', encoding='utf-8') as descr:
             rets.append(descr.read()) # descr
@@ -141,7 +141,7 @@ if __name__ == "__main__":
         for i in range(d+1):
             depth_name = os.path.join(depth_name, f'depth_{i}')
         path = os.path.join(depth_name, f'part_{scene}')
-        action_txt = os.path.join(path, f'subset_{scene}.txt')
+        action_txt = os.path.join(path, f'subset_{action}.txt')
         with open(action_txt, 'w', encoding='utf-8') as descr_f:
             descr_f.write(descr)
     

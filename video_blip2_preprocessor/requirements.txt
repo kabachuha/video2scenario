@@ -1,7 +1,0 @@
-torch
-torchvision
-tqdm
-pillow
-decord
-transformers
-av

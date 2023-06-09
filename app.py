@@ -78,7 +78,7 @@ if __name__ == "__main__":
     import gradio as gr
 
     def on_depth_change(d, L):
-        return [gr.update(maximum=L**(d-1) if d > 1 else 1), gr.update(maximum=L if d > 0 else 1)]
+        return [gr.update(maximum=L**(d-1)-1 if d > 1 else 0), gr.update(maximum=L-1 if d > 0 else 1)]
     
     # returns depth, L, description, keyframes, base64 html
     def refresh_descr(init_path, d, scene, action):
@@ -89,6 +89,7 @@ if __name__ == "__main__":
         assert os.path.exists(init_path) and os.path.isdir(init_path)
         # show description
         max_d, L = calculate_depth(init_path)
+        max_d = max_d - 1
         rets.append(gr.update(maximum=max_d)) # update max_depth, will cause updates to other elements
         rets.append(L) # update L
 
@@ -100,7 +101,7 @@ if __name__ == "__main__":
         for i in range(d+1):
             depth_name = os.path.join(depth_name, f'depth_{i}')
         path = os.path.join(depth_name, f'part_{scene}')
-        action_txt = os.path.join(path, f'subset_{scene}.txt')
+        action_txt = os.path.join(path, f'subset_{action}.txt')
         action_mp4 = os.path.join(path, f'subset_{action}.mp4')
 
         with open(action_txt, 'r', encoding='utf-8') as descr:

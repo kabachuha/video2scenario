@@ -3,10 +3,12 @@
 
 import requests, json
 from video_chop import chop_video
-from chops_to_folder_dataset import move_the_files, calculate_depth
+from chops_to_folder_dataset import move_the_files, calculate_depth, read_first_frame, read_all_frames
 from video_blip2_preprocessor.preprocess import PreProcessVideos
 import time, logging, coloredlogs
-import os
+import os, cv2
+from base64 import b64encode
+from PIL import Image
 
 logger = None
 
@@ -78,7 +80,11 @@ if __name__ == "__main__":
     def on_depth_change(d, L):
         return [gr.update(maximum=L**(d-1) if d > 1 else 1), gr.update(maximum=L if d > 0 else 1)]
     
+    # returns depth, L, description, keyframes, base64 html
     def refresh_descr(init_path, d, scene, action):
+
+        logger.info(f'Reading video tree dataset at {init_path}, depth {d}, part {scene}, subset {action}')
+
         rets = []
         assert os.path.exists(init_path) and os.path.isdir(init_path)
         # show description
@@ -90,11 +96,40 @@ if __name__ == "__main__":
         scene = min(scene, L**(d-1) if d > 1 else 1)
         action = min(action, L if d > 0 else 1)
 
-        path = os.getcwd()
-        for i in range(d):
-            path = os.path.join(path, f'depth_{i}')
+        depth_name = init_path
+        for i in range(d+1):
+            depth_name = os.path.join(depth_name, f'depth_{i}')
+        path = os.path.join(depth_name, f'part_{scene}')
+        action_txt = os.path.join(path, f'subset_{scene}.txt')
+        action_mp4 = os.path.join(path, f'subset_{scene}.mp4')
 
-        rets.append(L) # update L
+        with open(action_txt) as descr:
+            rets.append(descr.read()) # descr
+
+        if d == max_d:
+            # reading all frames as keyframes
+            frames = read_all_frames(action_mp4)
+        else:
+            next_depth_name = os.path.join(depth_name, f'depth_{d+1}')
+            next_part_path = os.path.join(next_depth_name, f'part_{action+L*scene}') # `i` cause we want to sample each corresponding *subset*
+
+            # depths > 0 are *guaranteed* to have L videos in their part_j folders
+            
+            # now sampling each first frame at the next level
+            frames = [read_first_frame(os.path.join(next_part_path, f'subset_{k}.mp4')) for k in range(L)]
+        
+        frames = [cv2.cvtColor(img, cv2.COLOR_BGR2RGB) for img in frames]
+        frames = [Image.fromarray(img) for img in frames]
+        
+        rets.append(frames) # keyframes
+
+        #mp4 = open(action_mp4, 'rb').read()
+        #dataurl = "data:video/mp4;base64," + b64encode(mp4).decode()
+
+        #rets.append(f'<video controls loop><source src="{dataurl}" type="video/mp4"></video><br>') #keyframes_base64
+        rets.append(action_mp4)
+
+        return rets
     
     with gr.Blocks(analytics_enabled=False) as interface:
         with gr.Row().style(equal_height=False, variant='compact'):
@@ -171,7 +206,8 @@ if __name__ == "__main__":
                     with gr.Tab(label="Keyframes viewer"):
                         # list of keyframes at each selected layer
                         keyframes = gr.Gallery()
-                        keyframes_vid64 = gr.HTML("") # placeholder for previewable Video Base64 HTML
+                        #keyframes_vid64 = gr.HTML("") # placeholder for previewable Video Base64 HTML
+                        keyframes_vid64 = gr.Video(value=None, interactive=False)
                     with gr.Tab(id=1, label="Video splitter"):
                         with gr.Row(variant='compact'):
                             chop_skip_frames = gr.Slider(label='How many frames to drop from source', value=0, step=0.02, interactive=True, minimum=0, maximum=0.99)
@@ -180,7 +216,7 @@ if __name__ == "__main__":
                         with gr.Row(variant='compact'):
                             # splitted video folderpath
                             chop_whole_vid_path = gr.Textbox(label="Path to the whole video, if not splitted yet", interactive=True)
-                            chop_split_path = gr.Textbox(label="Splitted video folderpath", value='folder_dataset', interactive=True)
+                            chop_split_path = gr.Textbox(label="Splitted video folderpath", value='split_videos/bad_small1/', interactive=True)
                             chop_trg_path = gr.Textbox(label="Target folder dataset path", interactive=True)
                             # will chop if not exist
                         with gr.Row(variant='compact'):
@@ -220,5 +256,7 @@ if __name__ == "__main__":
         
         # interactions
         descr_depth.change(on_depth_change, inputs=[descr_depth, chop_L], outputs=[descr_part, descr_subset])
+        descr_load.click(refresh_descr, outputs=[descr_depth, chop_L, descr, keyframes, keyframes_vid64], inputs=[chop_split_path, descr_depth, descr_part, descr_subset])
+        #depth, L, description, video, keyframes, gallery, base64 html
 
     interface.launch(share=args["share"], server_name=args['server_name'], server_port=args['server_port'])

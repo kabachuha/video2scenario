@@ -65,7 +65,8 @@ def calculate_depth(init_path):
     for d in range(0, max_depth):
         depth_name = os.path.join(depth_name, f'depth_{d}')
         if not os.path.exists(depth_name):
-            L = len(os.listdir(init_path)) // 2
+            # count all subsets in a first full part
+            L = len(os.listdir(os.path.join(init_path, 'depth_0', 'depth_1', 'depth_2', 'part_0'))) // 2
             return d, L
 
 def move_the_files(init_path, L, depth, overwrite_dims, width, height, overwrite_fps, fps):

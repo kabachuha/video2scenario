@@ -4,10 +4,11 @@
 import requests, json
 from video_chop import chop_video
 from chops_to_folder_dataset import move_the_files, calculate_depth, read_first_frame, read_all_frames
-from video_blip2_preprocessor.preprocess import PreProcessVideos
+from transformers import Blip2Processor, Blip2ForConditionalGeneration
 import time, logging, coloredlogs
 import os, cv2
 from base64 import b64encode
+import torch, gc
 from PIL import Image
 
 logger = None
@@ -76,6 +77,51 @@ def run():
 
 if __name__ == "__main__":
     import gradio as gr
+    
+    blip_model = None
+    processor = None
+
+    def load_blip():
+        global processor, blip_model
+        if processor is not None and blip_model is not None:
+            return
+        print("Loading BLIP2")
+
+        processor = Blip2Processor.from_pretrained("Salesforce/blip2-opt-2.7b")
+        model = Blip2ForConditionalGeneration.from_pretrained(
+            "Salesforce/blip2-opt-2.7b", torch_dtype=torch.float16
+        )
+        model.to('cuda' if torch.cuda.is_available() else 'cpu')
+        blip_model = model
+    
+    def unload_blip():
+        blip_model = None
+        processor = None
+        torch.cuda.empty_cache()
+        gc.collect()
+    
+    # utility function
+    def caption_image(image, beam_amount, min_length, max_length):
+        global processor, blip_model
+        inputs = processor(images=image, return_tensors="pt").to(blip_model.device, torch.float16)
+        generated_ids = blip_model.generate(
+                **inputs, 
+                num_beams=beam_amount, 
+                min_length=min_length, 
+                max_length=max_length
+            )
+        generated_text = processor.batch_decode(
+            generated_ids, 
+            skip_special_tokens=True)[0].strip()
+        
+        return generated_text
+    
+    # human-friendly image descr regeneration
+    def descr_regen_image(image, beam_amount, min_length, max_length):
+        load_blip()
+        text = caption_image(image, beam_amount, min_length, max_length)
+        unload_blip()
+        return text
 
     def on_depth_change(d, L):
         return [gr.update(maximum=L**(d-1)-1 if d > 1 else 0), gr.update(maximum=L-1 if d > 0 else 1)]
@@ -146,6 +192,32 @@ if __name__ == "__main__":
         with open(action_txt, 'w', encoding='utf-8') as descr_f:
             descr_f.write(descr)
     
+    def descr_regen(init_path, depth, scene, action, beam_amount, min_length, max_length):
+        logger.warning(f'ReWriting video descr at {init_path}, depth {depth}, part {scene}, subset {action}')
+
+        assert os.path.exists(init_path) and os.path.isdir(init_path)
+        # show description
+        max_d, L = calculate_depth(init_path)
+
+        d = min(depth, max_d)
+        scene = min(scene, L**(d-1) if d > 1 else 1)
+        action = min(action, L if d > 0 else 1)
+
+        depth_name = init_path
+        for i in range(d+1):
+            depth_name = os.path.join(depth_name, f'depth_{i}')
+        path = os.path.join(depth_name, f'part_{scene}')
+        action_mp4 = os.path.join(path, f'subset_{action}.mp4')
+
+        # use BLIP2 for ground frame captioning, use LLMs for upper level
+        if d == max_d:
+            image = read_first_frame(action_mp4)
+            descr = descr_regen_image(image, beam_amount, min_length, max_length)
+        else:
+            ...
+        
+        return descr
+
     with gr.Blocks(analytics_enabled=False) as interface:
         with gr.Row().style(equal_height=False, variant='compact'):
             with gr.Column(scale=1, variant='panel'):
@@ -202,7 +274,7 @@ if __name__ == "__main__":
                                 gr.Markdown('Uses bisection for more than 1 prompt/division')
                                 with gr.Row(variant='compact'):
                                     autocap_frames = gr.Slider(label='Autocaptioned frames', value=2, step=1, interactive=True, minimum=1, maximum=12) # will be populater with L
-                                    autocap_padding = gr.Radio(label='Padding', value='left', choices=["left", "right", "none"], interactive=True)
+                                    autocap_beam_amount = gr.Slider(label='Beam amount', value=7, step=1, interactive=True, minimum=1, maximum=30)
                                 with gr.Row(variant='compact'):
                                     autocap_min_words = gr.Slider(label="Min words", minimum=1, maximum=15, value=15, step=1, interactive=True)
                                     autocap_max_words = gr.Slider(label="Max words", minimum=10, maximum=45, value=30, step=1, interactive=True)
@@ -272,6 +344,7 @@ if __name__ == "__main__":
         # interactions
         descr_depth.change(on_depth_change, inputs=[descr_depth, chop_L], outputs=[descr_part, descr_subset])
         descr_load.click(refresh_descr, outputs=[descr_depth, chop_L, descr, keyframes, keyframes_vid64], inputs=[chop_split_path, descr_depth, descr_part, descr_subset])
+        descr_regen_btn.click(descr_regen, inputs=[chop_split_path, descr_depth, descr_part, descr_subset, autocap_beam_amount, autocap_min_words, autocap_max_words], outputs=[descr])
         descr_save_btn.click(write_descr, inputs=[descr, chop_split_path, descr_depth, descr_part, descr_subset], outputs=[])
         #depth, L, description, video, keyframes, gallery, base64 html
 

@@ -30,29 +30,29 @@ if __name__ == "__main__":
 
 # Setting up the LLM interactions
 
-HOST = 'localhost:5000'
-URI = f'http://{HOST}/api/v1/generate' #TODO: support multimodal interactions
-API_KEY = "" # OpenAI or any other Auth key
-
 with open('args.json', 'r') as cfg_file:
     args = json.loads(cfg_file.read())
 
-def textgen(prompt):
-    with open('config.json', 'r') as cfg_file:
+def textgen(prompt, params):
+    with open('textgen_config.json', 'r') as cfg_file:
         config = json.loads(cfg_file.read())
 
     assert config is not None
-    config.pop('host')
+    URL = params.pop('textgen_url')
+    API_KEY = params.pop('textgen_key')
 
-    request = config
-    request['prompt'] = prompt
+    for k, v in params.items():
+        config[k] = v
 
-    print(request)
+    config['prompt'] = prompt
+
+    logger.info('Sending textgen request to server')
+    logger.debug(config)
 
     result = ''
 
     try:
-        response = requests.post(URI, json=request, headers={'Content-Type':'application/json', 'Authorization': 'Bearer {}'.format(API_KEY)})
+        response = requests.post(URL, json=config, headers={'Content-Type':'application/json', 'Authorization': 'Bearer {}'.format(API_KEY)})
         if response.status_code == 200:
             result = response.json()['results'][0]['text']
             print(result)
@@ -192,7 +192,10 @@ if __name__ == "__main__":
         with open(action_txt, 'w', encoding='utf-8') as descr_f:
             descr_f.write(descr)
     
-    def descr_regen(init_path, depth, scene, action, beam_amount, min_length, max_length):
+    def descr_regen(init_path, depth, scene, action, beam_amount, min_length, max_length, textgen_url, textgen_key, max_new_tokens, temperature, top_p, typical_p, top_k, repetition_penalty, encoder_repetition_penalty, length_penalty, master_scene, master_synopsis):
+        textgen_json = locals()
+        for i in 'init_path,depth,scene,action,beam_amount,min_length,max_length,master_scene,master_synopsis'.split(','):
+            textgen_json.pop(i)
         logger.warning(f'ReWriting video descr at {init_path}, depth {depth}, part {scene}, subset {action}')
 
         assert os.path.exists(init_path) and os.path.isdir(init_path)
@@ -214,7 +217,23 @@ if __name__ == "__main__":
             image = read_first_frame(action_mp4)
             descr = descr_regen_image(image, beam_amount, min_length, max_length)
         else:
-            ...
+            next_depth_name = os.path.join(depth_name, f'depth_{d+1}')
+            next_part_path = os.path.join(next_depth_name, f'part_{action+L*scene}') # `i` cause we want to sample each corresponding *subset*
+
+            # depths > 0 are *guaranteed* to have L videos in their part_j folders
+            
+            # now sampling each description at the next level
+            scenes = ''
+            for k in range(L):
+                with open(os.path.join(next_part_path, f'subset_{k}.txt'), 'r', 'utf-8') as subdescr:
+                    scenes += subdescr.read() + '\n'
+            
+            if d == 0:
+                prompt = master_synopsis.replace('%descriptions%', scenes)
+            else:
+                prompt = master_scene.replace('%descriptions%', scenes)
+            
+            descr = textgen(prompt, textgen_json)
         
         return descr
 
@@ -344,7 +363,7 @@ if __name__ == "__main__":
         # interactions
         descr_depth.change(on_depth_change, inputs=[descr_depth, chop_L], outputs=[descr_part, descr_subset])
         descr_load.click(refresh_descr, outputs=[descr_depth, chop_L, descr, keyframes, keyframes_vid64], inputs=[chop_split_path, descr_depth, descr_part, descr_subset])
-        descr_regen_btn.click(descr_regen, inputs=[chop_split_path, descr_depth, descr_part, descr_subset, autocap_beam_amount, autocap_min_words, autocap_max_words], outputs=[descr])
+        descr_regen_btn.click(descr_regen, inputs=[chop_split_path, descr_depth, descr_part, descr_subset, autocap_beam_amount, autocap_min_words, autocap_max_words, textgen_url, textgen_key, textgen_new_words, textgen_temperature, textgen_top_p, textgen_typical_p, textgen_top_k, textgen_repetition_penalty, textgen_encoder_repetition_penalty, textgen_length_penalty, master_scene, master_synopsis], outputs=[descr])
         descr_save_btn.click(write_descr, inputs=[descr, chop_split_path, descr_depth, descr_part, descr_subset], outputs=[])
         #depth, L, description, video, keyframes, gallery, base64 html
 

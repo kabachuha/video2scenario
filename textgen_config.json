@@ -1,6 +1,4 @@
 {
-    "host":"localhost:5000",
-    "api_key":"",
     "max_new_tokens": 80,
     "do_sample": true,
     "temperature": 0.45,

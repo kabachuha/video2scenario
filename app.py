@@ -185,6 +185,7 @@ if __name__ == "__main__":
         assert os.path.exists(init_path) and os.path.isdir(init_path)
         # show description
         max_d, L = calculate_depth(init_path)
+        max_d = max_d - 1
 
         d = min(depth, max_d)
         scene = min(scene, L**(d-1) if d > 1 else 1)
@@ -207,6 +208,7 @@ if __name__ == "__main__":
         assert os.path.exists(init_path) and os.path.isdir(init_path)
         # show description
         max_d, L = calculate_depth(init_path)
+        max_d = max_d - 1
 
         d = min(depth, max_d)
         scene = min(scene, L**(d-1) if d > 1 else 1)
@@ -352,7 +354,7 @@ if __name__ == "__main__":
                                     # whole
                                     # this level
                                     #
-                                    do_apply_to = gr.Radio(label="Apply to:", value="Whole video", choices=["Whole video", "This level"], interactive=True)
+                                    do_apply_to = gr.Radio(label="Apply to:", value="Whole video", choices=["Whole video", "This level"], interactive=False)
                             with gr.Column(variant='compact'):
                                 with gr.Row(variant='compact'):
                                     # generate button

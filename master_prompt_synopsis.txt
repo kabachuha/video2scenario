@@ -1,0 +1,5 @@
+Write a brief synopsis for a film consisting of the following scenes:
+
+%descriptions%
+
+### Response:

@@ -20,7 +20,7 @@ if __name__ == "__main__":
     ch = logging.StreamHandler()
     ch.setLevel(logging.INFO)
     fh = logging.FileHandler(f'logs/{timestring}.log')
-    fh.setLevel(logging.INFO)
+    fh.setLevel(logging.DEBUG)
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
     fh.setFormatter(formatter)
     formatter_hf = logging.Formatter('%(levelname)s - %(message)s')
@@ -80,6 +80,12 @@ if __name__ == "__main__":
     
     blip_model = None
     processor = None
+
+    with open('master_prompt_scene.txt', 'r', encoding='utf-8') as cfg_file:
+        master_scene_default = cfg_file.read()
+    
+    with open('master_prompt_synopsis.txt', 'r', encoding='utf-8') as cfg_file:
+        master_synopsis_default = cfg_file.read()
 
     def load_blip():
         global processor, blip_model
@@ -225,7 +231,7 @@ if __name__ == "__main__":
             # now sampling each description at the next level
             scenes = ''
             for k in range(L):
-                with open(os.path.join(next_part_path, f'subset_{k}.txt'), 'r', 'utf-8') as subdescr:
+                with open(os.path.join(next_part_path, f'subset_{k}.txt'), 'r', encoding='utf-8') as subdescr:
                     scenes += subdescr.read() + '\n'
             
             if d == 0:
@@ -285,9 +291,9 @@ if __name__ == "__main__":
                                     textgen_length_penalty = gr.Slider(label='Length penalty', value=1, step=0.01, interactive=True, minimum=0, maximum=2)
                             with gr.Tab(label='Master prompts'):
                                 with gr.Row(variant='compact'):
-                                    master_scene = gr.TextArea(label="Scene", lines=5, interactive=True)
+                                    master_scene = gr.TextArea(label="Scene", lines=5, interactive=True, value=master_scene_default)
                                 with gr.Row(variant='compact'):
-                                    master_synopsis = gr.TextArea(label="Synopsis", lines=5, interactive=True)
+                                    master_synopsis = gr.TextArea(label="Synopsis", lines=5, interactive=True, value=master_synopsis_default)
                             with gr.Tab(label='Frame captioning'):
                                 gr.Markdown('Frame autocaptioning (BLIP2) settings')
                                 gr.Markdown('Uses bisection for more than 1 prompt/division')

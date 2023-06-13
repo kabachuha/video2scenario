@@ -67,7 +67,12 @@ def process_video():
     
     ...
     #clear video
-    #chop_video
+    #chop video
+    if do_chop:
+        if os.path.exist(split_video_path):
+            shutil.rmtree(split_video_path)
+        chop_video(input_video_path, split_video_path, L)
+ 
     #caption video
 
 def run():

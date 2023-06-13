@@ -66,7 +66,7 @@ def textgen(prompt, params):
 def process_video():
     
     ...
-    #clear video
+    #clear info
     #chop video
     if do_chop:
         if os.path.exist(split_video_path):

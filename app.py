@@ -66,14 +66,24 @@ def textgen(prompt, params):
 def process_video():
     
     ...
-    #clear info
+
     #chop video
     if do_chop:
         if os.path.exist(split_video_path):
             shutil.rmtree(split_video_path)
         chop_video(input_video_path, split_video_path, L)
  
+    max_d, L = calculate_depth(init_path)
+    max_d = max_d - 1
     #caption video
+    depth_name = split_video_path
+    for i in range(d+1):
+         depth_name = os.path.join(depth_name, f'depth_{i}')
+    for j in range(L**(max_d-1) if max_d > 1 else 1):
+        part_path = os.path.join(depth_name, f'part_{j}')
+        # sample the text info for the next subset
+        for i in range(L if max_d > 0 else 1):
+            txt_path = os.path.join(part_path, f'subset_{i}.txt')
 
 def run():
     print("Hey!")

@@ -10,6 +10,8 @@ import os, cv2
 from base64 import b64encode
 import torch, gc
 from PIL import Image
+import shutil
+from tqdm import tqdm
 
 logger = None
 
@@ -63,31 +65,6 @@ def textgen(prompt, params):
             raise e
     return result
 
-def process_video():
-    
-    ...
-
-    #chop video
-    if do_chop:
-        if os.path.exist(split_video_path):
-            shutil.rmtree(split_video_path)
-        chop_video(input_video_path, split_video_path, L)
- 
-    max_d, L = calculate_depth(init_path)
-    max_d = max_d - 1
-    #caption video
-    depth_name = split_video_path
-    for i in range(d+1):
-         depth_name = os.path.join(depth_name, f'depth_{i}')
-    for j in range(L**(max_d-1) if max_d > 1 else 1):
-        part_path = os.path.join(depth_name, f'part_{j}')
-        # sample the text info for the next subset
-        for i in range(L if max_d > 0 else 1):
-            txt_path = os.path.join(part_path, f'subset_{i}.txt')
-
-def run():
-    print("Hey!")
-
 # Gradio interface setup if launching as an app
 
 if __name__ == "__main__":
@@ -138,11 +115,115 @@ if __name__ == "__main__":
         
         return generated_text
     
+    def process_video(do_chop, do_clear, do_caption, do_textgen, do_export, do_delete, input_video_path, split_video_path, dataset_path, beam_amount, min_length, max_length, textgen_url, textgen_key, max_new_tokens, temperature, top_p, typical_p, top_k, repetition_penalty, encoder_repetition_penalty, length_penalty, master_scene, master_synopsis, exp_overwrite_dims, exp_w, exp_h, exp_overwrite_fps, exp_fps):
+        
+        logger.info(f'Processing video at {input_video_path}')
+
+        #chop video
+        if do_chop:
+            if os.path.exist(split_video_path):
+                shutil.rmtree(split_video_path)
+            chop_video(input_video_path, split_video_path, L)
+    
+        max_d, L = calculate_depth(input_video_path)
+        max_d = max_d - 1
+
+        # caption video
+        if do_caption:
+            logger.info(f'Captioning frames')
+            load_blip()
+
+            try:
+                # arrive at ground frames to caption them with blip
+                depth_name = split_video_path
+                for i in range(max_d):
+                    depth_name = os.path.join(depth_name, f'depth_{i}')
+                for j in range(L**(max_d-1) if max_d > 1 else 1):
+                    part_path = os.path.join(depth_name, f'part_{j}')
+                    # sample the text info for the next subset
+                    for i in range(L if max_d > 0 else 1):
+                        txt_path = os.path.join(part_path, f'subset_{i}.txt')
+                        mp4_path = os.path.join(part_path, f'subset_{i}.mp4')
+
+                        image = read_first_frame(mp4_path)
+                        descr = caption_image(image, beam_amount, min_length, max_length)
+
+                        with open(txt_path, 'w' if do_clear else 'a', encoding='utf-8') as descr_f:
+                            descr_f.write(descr)
+
+            except Exception as e:
+                logger.error(e)
+            finally:
+                unload_blip()
+
+        if do_textgen:
+            t_counter=0
+            for d in range(0, max_d-1):
+                for j in range(L**(d-1) if d > 1 else 1):
+                    for i in range(L if d > 0 else 1):
+                        t_counter+=1
+            tq = tqdm(total=t_counter)
+
+            logger.info(f'Generating descriptions')
+
+            # going reverse here
+            assert max_d-1>0
+            for d in range(range(max_d-1,-1,-1)):
+                depth_name = split_video_path
+                for i in range(d):
+                    depth_name = os.path.join(depth_name, f'depth_{i}')
+                for j in range(L**(d-1) if d > 1 else 1):
+                    part_path = os.path.join(depth_name, f'part_{j}')
+                        # sample the text info for the next subset
+                    for i in range(L if d > 0 else 1):
+                        txt_path = os.path.join(part_path, f'subset_{i}.txt')
+                        mp4_path = os.path.join(part_path, f'subset_{i}.mp4')
+                        tq.set_description(f'Depth {d}, part {j}, subset{i}')
+
+                        with open(txt_path, 'r', encoding='utf-8') as descr_f:
+                            peek_d = descr_f.read()
+                        if len(peek_d) > 0 and not do_clear:
+                            continue
+
+                        next_depth_name = os.path.join(depth_name, f'depth_{d+1}')
+                        next_part_path = os.path.join(next_depth_name, f'part_{i+L*j}') # `i` cause we want to sample each corresponding *subset*
+
+                        # depths > 0 are *guaranteed* to have L videos in their part_j folders
+                        
+                        # now sampling each description at the next level
+                        scenes = ''
+                        for k in range(L):
+                            with open(os.path.join(next_part_path, f'subset_{k}.txt'), 'r', encoding='utf-8') as subdescr:
+                                scenes += subdescr.read() + '\n'
+                        
+                        if d == 0:
+                            prompt = master_synopsis.replace('%descriptions%', scenes)
+                        else:
+                            prompt = master_scene.replace('%descriptions%', scenes)
+                        
+                        textgen_json = {"textgen_url":textgen_url, "textgen_key":textgen_key, "max_new_tokens":max_new_tokens, "temperature":temperature, "top_p":top_p, "typical_p":typical_p, "top_k":top_k, "repetition_penalty":repetition_penalty, "encoder_repetition_penalty":encoder_repetition_penalty, "length_penalty":length_penalty}
+
+                        descr = textgen(prompt, textgen_json)
+
+                        tq.update(1)
+            
+            tq.close()
+        
+        if do_export:
+            move_the_files(split_video_path, dataset_path, L, max_d, exp_overwrite_dims, exp_w, exp_h, exp_overwrite_fps, exp_fps)
+
+            if do_delete:
+                shutil.rmtree(split_video_path)
+
     # human-friendly image descr regeneration
     def descr_regen_image(image, beam_amount, min_length, max_length):
         load_blip()
-        text = caption_image(image, beam_amount, min_length, max_length)
-        unload_blip()
+        try:
+            text = caption_image(image, beam_amount, min_length, max_length)
+        except Exception as e:
+            logger.error(e)
+        finally:
+            unload_blip()
         return text
 
     def on_depth_change(d, L, s, a):
@@ -391,6 +472,8 @@ if __name__ == "__main__":
         descr_load.click(refresh_descr, outputs=[descr_depth, chop_L, descr, keyframes, keyframes_vid64], inputs=[chop_split_path, descr_depth, descr_part, descr_subset])
         descr_regen_btn.click(descr_regen, inputs=[chop_split_path, descr_depth, descr_part, descr_subset, autocap_beam_amount, autocap_min_words, autocap_max_words, textgen_url, textgen_key, textgen_new_words, textgen_temperature, textgen_top_p, textgen_typical_p, textgen_top_k, textgen_repetition_penalty, textgen_encoder_repetition_penalty, textgen_length_penalty, master_scene, master_synopsis], outputs=[descr])
         descr_save_btn.click(write_descr, inputs=[descr, chop_split_path, descr_depth, descr_part, descr_subset], outputs=[])
-        #depth, L, description, video, keyframes, gallery, base64 html
+
+        # process
+        do_btn.click(process_video, inputs=[process_video(do_chop, do_clear, do_caption, do_textgen, do_export, do_delete, chop_whole_vid_path, chop_split_path, chop_trg_path, autocap_beam_amount, autocap_min_words, autocap_max_words, textgen_url, textgen_key, textgen_new_words, textgen_temperature, textgen_top_p, textgen_typical_p, textgen_top_k, textgen_repetition_penalty, textgen_encoder_repetition_penalty, textgen_length_penalty, master_scene, master_synopsis, exp_overwrite_dims, exp_w, exp_h, exp_overwrite_fps, exp_fps)])
 
     interface.launch(share=args["share"], server_name=args['server_name'], server_port=args['server_port'])

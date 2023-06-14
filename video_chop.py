@@ -34,8 +34,8 @@ def chop_video_inner(video_path: str, folder:str, L: int, start_frame:int) -> in
         if ret:
             video_frames.append(frame)
 
-    dir_name = folder#Path(video_path).stem
-    #dir_name = os.path.join(folder, dir_name)
+    dir_name = folder
+
 
     for curr_depth in range(max_depth):
         num_splits = L ** curr_depth
@@ -71,7 +71,7 @@ def chop_video_inner(video_path: str, folder:str, L: int, start_frame:int) -> in
     video.release()
     return total_frames
 
-def chop_video(video_path: str, L: int, only_once = True):
+def chop_video(video_path: str, outpath: str, L: int):
 
     only_once = True
 
@@ -79,37 +79,37 @@ def chop_video(video_path: str, L: int, only_once = True):
         raise FileNotFoundError(f"Video file '{video_path}' not found.")
 
     video = cv2.VideoCapture(video_path)
-    fps = int(video.get(cv2.CAP_PROP_FPS))
+
     total_frames = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
+    video.release()
 
-    cur_dir_name = os.path.split(video_path)[0]#Path(video_path).stem
-    orig_name = Path(video_path).stem
-    outpath = os.path.join(cur_dir_name, 'split_videos', orig_name)
+
+
     os.makedirs(outpath)
-    #dir_name = cur_dir_name
-    #os.mkdir(dir_name)
-    vid_name = os.path.split(video_path)[1]
 
-    #scenario = 0
-    start_frame = 0
 
-    while start_frame < total_frames - L:
-        start_frame += chop_video_inner(video_path, outpath, L, start_frame)
-        #scenario += 1
 
-        if only_once:
-            break
+
+
+
+
+
+    chop_video_inner(video_path, outpath, L, start_frame)
+
+
+
+
     
-    os.rename(video_path, os.path.join(os.getcwd(), vid_name))
-    os.mkdir(orig_name)
+
+
 
 def main():
     parser = argparse.ArgumentParser(description="Chop a video file into subsets of frames.")
     parser.add_argument("video_file", help="Path to the video file.")
     parser.add_argument("--L", help="Num of splits on each level.")
-    #parser.add_argument("--subscenariosplit", help="Should it split ", action='store_true', default=False)
+    
     args = parser.parse_args()
-    chop_video(args.video_file, int(args.L))#, bool(args.subscenariosplit != None and args.subscenariosplit))
+    chop_video(args.video_file, int(args.L))
 
 if __name__ == "__main__":
     main()

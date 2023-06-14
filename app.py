@@ -121,7 +121,7 @@ if __name__ == "__main__":
 
         #chop video
         if do_chop:
-            if os.path.exist(split_video_path):
+            if os.path.exists(split_video_path):
                 shutil.rmtree(split_video_path)
             chop_video(input_video_path, split_video_path, L)
     

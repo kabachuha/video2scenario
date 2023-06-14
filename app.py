@@ -101,6 +101,7 @@ if __name__ == "__main__":
         blip_model = model
     
     def unload_blip():
+        global blip_model, processor
         blip_model = None
         processor = None
         torch.cuda.empty_cache()
@@ -129,8 +130,10 @@ if __name__ == "__main__":
         unload_blip()
         return text
 
-    def on_depth_change(d, L):
-        return [gr.update(maximum=L**(d-1)-1 if d > 1 else 0), gr.update(maximum=L-1 if d > 0 else 1)]
+    def on_depth_change(d, L, s, a):
+        new_s = L**(d-1)-1 if d > 1 else 0
+        new_a = L-1 if d > 0 else 1
+        return [gr.update(maximum=new_s, value=min(s, new_s)), gr.update(maximum=new_a, value=min(a, new_a))]
     
     # returns depth, L, description, keyframes, base64 html
     def refresh_descr(init_path, d, scene, action):
@@ -369,7 +372,7 @@ if __name__ == "__main__":
                         exp_fps = gr.Slider(label="FPS", value=12, minimum=1, maximum=144, step=1, interactive=True)
         
         # interactions
-        descr_depth.change(on_depth_change, inputs=[descr_depth, chop_L], outputs=[descr_part, descr_subset])
+        descr_depth.change(on_depth_change, inputs=[descr_depth, chop_L, descr_part, descr_subset], outputs=[descr_part, descr_subset])
         descr_load.click(refresh_descr, outputs=[descr_depth, chop_L, descr, keyframes, keyframes_vid64], inputs=[chop_split_path, descr_depth, descr_part, descr_subset])
         descr_regen_btn.click(descr_regen, inputs=[chop_split_path, descr_depth, descr_part, descr_subset, autocap_beam_amount, autocap_min_words, autocap_max_words, textgen_url, textgen_key, textgen_new_words, textgen_temperature, textgen_top_p, textgen_typical_p, textgen_top_k, textgen_repetition_penalty, textgen_encoder_repetition_penalty, textgen_length_penalty, master_scene, master_synopsis], outputs=[descr])
         descr_save_btn.click(write_descr, inputs=[descr, chop_split_path, descr_depth, descr_part, descr_subset], outputs=[])

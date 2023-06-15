@@ -16,12 +16,17 @@ from tqdm import tqdm
 logger = None
 
 if __name__ == "__main__":
+
+    logs_dir = 'logs'
+    if not os.path.exists(logs_dir):
+        os.makedirs(logs_dir)
+
     coloredlogs.install()
     timestring = time.strftime('%Y%m%d%H%M%S')
     logger = logging.getLogger(__name__)
     ch = logging.StreamHandler()
     ch.setLevel(logging.INFO)
-    fh = logging.FileHandler(f'logs/{timestring}.log')
+    fh = logging.FileHandler(f'{logs_dir}/{timestring}.log')
     fh.setLevel(logging.DEBUG)
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
     fh.setFormatter(formatter)

@@ -122,19 +122,16 @@ if __name__ == "__main__":
     
     def process_video(do_chop, do_clear, do_caption, do_textgen, do_export, do_delete, input_video_path, split_video_path, dataset_path, beam_amount, min_length, max_length, textgen_url, textgen_key, max_new_tokens, temperature, top_p, typical_p, top_k, repetition_penalty, encoder_repetition_penalty, length_penalty, master_scene, master_synopsis, exp_overwrite_dims, exp_w, exp_h, exp_overwrite_fps, exp_fps):
         
-        input_video_path = input_video_path.value
-        split_video_path = split_video_path.value
-        
         logger.info(f'Processing video at {input_video_path}')
-
-        max_d, L = calculate_depth(input_video_path)
-        max_d = max_d - 1
 
         #chop video
         if do_chop:
             if os.path.exists(split_video_path):
                 shutil.rmtree(split_video_path)
             chop_video(input_video_path, split_video_path, L)
+
+        max_d, L = calculate_depth(input_video_path)
+        max_d = max_d - 1
 
         # caption video
         if do_caption:

@@ -1,6 +1,7 @@
 source_videos/
 split_videos/
 logs/
+*.log
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -11,11 +11,51 @@ from base64 import b64encode
 import torch, gc
 from PIL import Image
 import shutil
-from tqdm import tqdm
+from tqdm import tqdm    
 
-logger = None
+# Gradio interface setup if launching as an app
 
 if __name__ == "__main__":
+    with open('args.json', 'r') as cfg_file:
+        args = json.loads(cfg_file.read())
+    
+    def textgen(prompt, params): # 1.03.24 change: switched to OpenAI Oobabooga API
+        # NOTE reopening every time to allow dynamic changes to params
+        with open('textgen_config.json', 'r') as cfg_file:
+            config = json.loads(cfg_file.read())
+
+        assert config is not None
+        URL = params.pop('textgen_url') # e.g. "http://127.0.0.1:5000/v1/chat/completions"
+        API_KEY = params.pop('textgen_key')
+
+        for k, v in params.items():
+            config[k] = v
+        
+        # the config.json can now have HISTORY
+
+        if not 'messages' in config:
+            config['messages'] = []
+        
+        config['messages'].append({"role": "user", "content": prompt})
+        
+        logger.info('Sending textgen request to server')
+        logger.debug(config)
+
+        result = ''
+
+        try:
+            response = requests.post(URL, json=config, headers={'Content-Type':'application/json', 'Authorization': 'Bearer {}'.format(API_KEY)}, verify=False)
+            if response.status_code == 200:
+                result = response.json()['choices'][0]['message']['content']
+                print(result)
+            else:
+                raise Exception(f'Request returned status {response.status_code}')
+        except Exception as e:
+                print(e)
+                raise e
+        return result
+
+    logger = None
 
     logs_dir = 'logs'
     if not os.path.exists(logs_dir):
@@ -34,45 +74,6 @@ if __name__ == "__main__":
     ch.setFormatter(formatter_hf)
     logger.addHandler(fh)
     logger.addHandler(ch)
-
-# Setting up the LLM interactions
-
-with open('args.json', 'r') as cfg_file:
-    args = json.loads(cfg_file.read())
-
-def textgen(prompt, params):
-    with open('textgen_config.json', 'r') as cfg_file:
-        config = json.loads(cfg_file.read())
-
-    assert config is not None
-    URL = params.pop('textgen_url')
-    API_KEY = params.pop('textgen_key')
-
-    for k, v in params.items():
-        config[k] = v
-
-    config['prompt'] = prompt
-
-    logger.info('Sending textgen request to server')
-    logger.debug(config)
-
-    result = ''
-
-    try:
-        response = requests.post(URL, json=config, headers={'Content-Type':'application/json', 'Authorization': 'Bearer {}'.format(API_KEY)})
-        if response.status_code == 200:
-            result = response.json()['results'][0]['text']
-            print(result)
-        else:
-            raise Exception(f'Request returned status {response.status_code}')
-    except Exception as e:
-            print(e)
-            raise e
-    return result
-
-# Gradio interface setup if launching as an app
-
-if __name__ == "__main__":
     import gradio as gr
     
     blip_model = None

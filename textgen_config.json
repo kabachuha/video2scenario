@@ -18,5 +18,11 @@
     "truncation_length": 2048,
     "ban_eos_token": false,
     "skip_special_tokens": true,
-    "stopping_strings": []
+    "stopping_strings": [],
+    "messages": [
+        {
+            "role": "system",
+            "content": "You are a helpful AI storytelling and pop culture expert."
+        }
+    ]
 }

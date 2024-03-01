@@ -1,5 +1,3 @@
 Using the frame captions below, describe a film scene shortly:
 
 %descriptions%
-
-### Response:

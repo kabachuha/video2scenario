@@ -83,25 +83,8 @@ def chop_video(video_path: str, outpath: str, L: int):
     total_frames = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
     video.release()
 
-
-
     os.makedirs(outpath)
-
-
-
-
-
-
-
-
     chop_video_inner(video_path, outpath, L, start_frame)
-
-
-
-
-    
-
-
 
 def main():
     parser = argparse.ArgumentParser(description="Chop a video file into subsets of frames.")

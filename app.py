@@ -480,6 +480,6 @@ if __name__ == "__main__":
         descr_save_btn.click(write_descr, inputs=[descr, chop_split_path, descr_depth, descr_part, descr_subset], outputs=[])
 
         # process
-        #do_btn.click(process_video, inputs=[process_video(do_chop, do_clear, do_caption, do_textgen, do_export, do_delete, chop_whole_vid_path, chop_split_path, chop_trg_path, autocap_beam_amount, autocap_min_words, autocap_max_words, textgen_url, textgen_key, textgen_new_words, textgen_temperature, textgen_top_p, textgen_typical_p, textgen_top_k, textgen_repetition_penalty, textgen_encoder_repetition_penalty, textgen_length_penalty, master_scene, master_synopsis, exp_overwrite_dims, exp_w, exp_h, exp_overwrite_fps, exp_fps)])
+        do_btn.click(process_video, inputs=[do_chop, do_clear, do_caption, do_textgen, do_export, do_delete, chop_whole_vid_path, chop_split_path, chop_trg_path, autocap_beam_amount, autocap_min_words, autocap_max_words, textgen_url, textgen_key, textgen_new_words, textgen_temperature, textgen_top_p, textgen_typical_p, textgen_top_k, textgen_repetition_penalty, textgen_encoder_repetition_penalty, textgen_length_penalty, master_scene, master_synopsis, exp_overwrite_dims, exp_w, exp_h, exp_overwrite_fps, exp_fps])
 
     interface.launch(share=args["share"], server_name=args['server_name'], server_port=args['server_port'])

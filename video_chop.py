@@ -8,7 +8,7 @@ import cv2
 from tqdm import tqdm
 from pathlib import Path
 
-def chop_video_inner(video_path: str, folder:str, L: int, start_frame:int) -> int:
+def chop_video_inner(video_path: str, folder:str, L: int, start_frame:int = 0) -> int:
     if not os.path.exists(video_path):
         raise FileNotFoundError(f"Video file '{video_path}' not found.")
 
@@ -84,7 +84,7 @@ def chop_video(video_path: str, outpath: str, L: int):
     video.release()
 
     os.makedirs(outpath)
-    chop_video_inner(video_path, outpath, L, start_frame)
+    chop_video_inner(video_path, outpath, L, start_frame=0)
 
 def main():
     parser = argparse.ArgumentParser(description="Chop a video file into subsets of frames.")

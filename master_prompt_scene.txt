@@ -1,3 +1,1 @@
-Using the frame captions below, describe a film scene shortly:
-
-%descriptions%
+Describe a video scene shortly, but expressively (in two sentences).

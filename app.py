@@ -121,8 +121,8 @@ if __name__ == "__main__":
         
         return generated_text
     
-    def process_video(do_chop, do_clear, do_caption, do_textgen, do_export, do_delete, input_video_path, split_video_path, dataset_path, beam_amount, min_length, max_length, textgen_url, textgen_key, max_new_tokens, temperature, top_p, typical_p, top_k, repetition_penalty, encoder_repetition_penalty, length_penalty, master_scene, master_synopsis, exp_overwrite_dims, exp_w, exp_h, exp_overwrite_fps, exp_fps):
-        
+    def process_video(do_chop, do_clear, do_caption, do_textgen, do_export, do_delete, chop_L, input_video_path, split_video_path, dataset_path, textgen_url, textgen_key, master_scene, master_synopsis, exp_overwrite_dims, exp_w, exp_h, exp_overwrite_fps, exp_fps):
+        L = chop_L
         logger.info(f'Processing video at {input_video_path}')
 
         #chop video
@@ -131,7 +131,7 @@ if __name__ == "__main__":
                 shutil.rmtree(split_video_path)
             chop_video(input_video_path, split_video_path, L)
 
-        max_d, L = calculate_depth(input_video_path)
+        max_d, L = calculate_depth(split_video_path)
         max_d = max_d - 1
 
         # caption video
@@ -152,7 +152,7 @@ if __name__ == "__main__":
                         mp4_path = os.path.join(part_path, f'subset_{i}.mp4')
 
                         image = read_first_frame(mp4_path)
-                        descr = caption_image(image, beam_amount, min_length, max_length)
+                        descr = "" #FIXME caption_image(image, beam_amount, min_length, max_length)
 
                         with open(txt_path, 'w' if do_clear else 'a', encoding='utf-8') as descr_f:
                             descr_f.write(descr)
@@ -207,7 +207,7 @@ if __name__ == "__main__":
                         else:
                             prompt = master_scene.replace('%descriptions%', scenes)
                         
-                        textgen_json = {"textgen_url":textgen_url, "textgen_key":textgen_key, "max_new_tokens":max_new_tokens, "temperature":temperature, "top_p":top_p, "typical_p":typical_p, "top_k":top_k, "repetition_penalty":repetition_penalty, "encoder_repetition_penalty":encoder_repetition_penalty, "length_penalty":length_penalty}
+                        textgen_json = {}#{"textgen_url":textgen_url, "textgen_key":textgen_key, "max_new_tokens":max_new_tokens, "temperature":temperature, "top_p":top_p, "typical_p":typical_p, "top_k":top_k, "repetition_penalty":repetition_penalty, "encoder_repetition_penalty":encoder_repetition_penalty, "length_penalty":length_penalty}
 
                         descr = textgen(prompt, textgen_json)
 
@@ -480,6 +480,6 @@ if __name__ == "__main__":
         descr_save_btn.click(write_descr, inputs=[descr, chop_split_path, descr_depth, descr_part, descr_subset], outputs=[])
 
         # process
-        do_btn.click(process_video, inputs=[do_chop, do_clear, do_caption, do_textgen, do_export, do_delete, chop_whole_vid_path, chop_split_path, chop_trg_path, autocap_beam_amount, autocap_min_words, autocap_max_words, textgen_url, textgen_key, textgen_new_words, textgen_temperature, textgen_top_p, textgen_typical_p, textgen_top_k, textgen_repetition_penalty, textgen_encoder_repetition_penalty, textgen_length_penalty, master_scene, master_synopsis, exp_overwrite_dims, exp_w, exp_h, exp_overwrite_fps, exp_fps])
+        do_btn.click(process_video, inputs=[do_chop, do_clear, do_caption, do_textgen, do_export, do_delete, chop_L, chop_whole_vid_path, chop_split_path, chop_trg_path, textgen_url, textgen_key, master_scene, master_synopsis, exp_overwrite_dims, exp_w, exp_h, exp_overwrite_fps, exp_fps])
 
     interface.launch(share=args["share"], server_name=args['server_name'], server_port=args['server_port'])

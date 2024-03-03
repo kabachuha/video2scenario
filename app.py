@@ -205,7 +205,10 @@ if __name__ == "__main__":
             tq.close()
         
         if do_export:
-            move_the_files(split_video_path, dataset_path, L, max_d, exp_overwrite_dims, exp_w, exp_h, exp_overwrite_fps, exp_fps)
+            if os.path.exists(dataset_path):
+                shutil.rmtree(dataset_path)
+    
+            move_the_files(split_video_path, dataset_path, L, max_d-1, exp_overwrite_dims, exp_w, exp_h, exp_overwrite_fps, exp_fps)
 
             if do_delete:
                 shutil.rmtree(split_video_path)

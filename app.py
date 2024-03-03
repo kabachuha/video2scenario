@@ -119,7 +119,7 @@ if __name__ == "__main__":
             chop_video(input_video_path, split_video_path, L)
 
         max_d, L = calculate_depth(split_video_path)
-        max_d = max_d - 1
+        #max_d = max_d - 1
 
         # caption video
         if do_caption:
@@ -164,10 +164,10 @@ if __name__ == "__main__":
                 depth_name = split_video_path
                 for i in range(d):
                     depth_name = os.path.join(depth_name, f'depth_{i}')
-                for j in range(L**(d-1) if d > 1 else 1):
+                for j in range(L**(d-1) if d > 2 else 1):
                     part_path = os.path.join(depth_name, f'part_{j}')
                         # sample the text info for the next subset
-                    for i in range(L if d > 0 else 1):
+                    for i in range(L if d > 1 else 1):
                         txt_path = os.path.join(part_path, f'subset_{i}.txt')
                         mp4_path = os.path.join(part_path, f'subset_{i}.mp4')
                         tq.set_description(f'Depth {d}, part {j}, subset{i}')
@@ -184,7 +184,7 @@ if __name__ == "__main__":
                         
                         # now sampling each description at the next level
                         scenes = ''
-                        for k in range(L if d > 0 else 1):
+                        for k in range(L):
                             with open(os.path.join(next_part_path, f'subset_{k}.txt'), 'r', encoding='utf-8') as subdescr:
                                 scenes += subdescr.read() + '\n'
                         

@@ -2,9 +2,10 @@
 # Read LICENSE for usage terms.
 
 import requests, json
+
+from torch.autograd import variable
 from video_chop import chop_video
 from chops_to_folder_dataset import move_the_files, calculate_depth, read_first_frame, read_all_frames
-from transformers import Blip2Processor, Blip2ForConditionalGeneration
 import time, logging, coloredlogs
 import os, cv2
 from base64 import b64encode
@@ -19,7 +20,7 @@ if __name__ == "__main__":
     with open('args.json', 'r') as cfg_file:
         args = json.loads(cfg_file.read())
     
-    def textgen(prompt, params): # 1.03.24 change: switched to OpenAI Oobabooga API
+    def textgen(prompt, **params): # 1.03.24 change: switched to OpenAI Oobabooga API
         # NOTE reopening every time to allow dynamic changes to params
         with open('textgen_config.json', 'r') as cfg_file:
             config = json.loads(cfg_file.read())
@@ -54,6 +55,28 @@ if __name__ == "__main__":
                 print(e)
                 raise e
         return result
+    
+    def video_llava_gen(video_path, llava_url, llava_prompt):
+        
+        logger.info('Sending captioning request to LLaVA-server')
+        logger.info(f'Of video at {video_path}')
+
+        file = {'file': open(video_path, 'rb')}
+        #data = {'prompt': llava_prompt}
+
+        result = ''
+
+        try:
+            response = requests.post(llava_url, files=file)#, headers={'Content-Type':'multipart/form-data'}, verify=True)
+            if response.status_code == 200:
+                result = response.json()['message']
+                #print(result)
+            else:
+                raise Exception(f'Request returned status {response.status_code}')
+        except Exception as e:
+                print(e)
+                raise e
+        return result
 
     logger = None
 
@@ -75,53 +98,17 @@ if __name__ == "__main__":
     logger.addHandler(fh)
     logger.addHandler(ch)
     import gradio as gr
-    
-    blip_model = None
-    processor = None
 
     with open('master_prompt_scene.txt', 'r', encoding='utf-8') as cfg_file:
         master_scene_default = cfg_file.read()
     
     with open('master_prompt_synopsis.txt', 'r', encoding='utf-8') as cfg_file:
         master_synopsis_default = cfg_file.read()
-
-    def load_blip():
-        global processor, blip_model
-        if processor is not None and blip_model is not None:
-            return
-        print("Loading BLIP2")
-
-        processor = Blip2Processor.from_pretrained("Salesforce/blip2-opt-2.7b")
-        model = Blip2ForConditionalGeneration.from_pretrained(
-            "Salesforce/blip2-opt-2.7b", torch_dtype=torch.float16
-        )
-        model.to('cuda' if torch.cuda.is_available() else 'cpu')
-        blip_model = model
     
-    def unload_blip():
-        global blip_model, processor
-        blip_model = None
-        processor = None
-        torch.cuda.empty_cache()
-        gc.collect()
+    with open('master_prompt_llava.txt', 'r', encoding='utf-8') as cfg_file:
+        master_llava_default = cfg_file.read()
     
-    # utility function
-    def caption_image(image, beam_amount, min_length, max_length):
-        global processor, blip_model
-        inputs = processor(images=image, return_tensors="pt").to(blip_model.device, torch.float16)
-        generated_ids = blip_model.generate(
-                **inputs, 
-                num_beams=beam_amount, 
-                min_length=min_length, 
-                max_length=max_length
-            )
-        generated_text = processor.batch_decode(
-            generated_ids, 
-            skip_special_tokens=True)[0].strip()
-        
-        return generated_text
-    
-    def process_video(do_chop, do_clear, do_caption, do_textgen, do_export, do_delete, chop_L, input_video_path, split_video_path, dataset_path, textgen_url, textgen_key, master_scene, master_synopsis, exp_overwrite_dims, exp_w, exp_h, exp_overwrite_fps, exp_fps):
+    def process_video(do_chop, do_clear, do_caption, do_textgen, do_export, do_delete, chop_L, input_video_path, split_video_path, dataset_path, textgen_url, textgen_key, master_scene, master_synopsis, exp_overwrite_dims, exp_w, exp_h, exp_overwrite_fps, exp_fps, video_llava_url, master_llava_prompt):
         L = chop_L
         logger.info(f'Processing video at {input_video_path}')
 
@@ -137,7 +124,6 @@ if __name__ == "__main__":
         # caption video
         if do_caption:
             logger.info(f'Captioning frames')
-            load_blip()
 
             try:
                 # arrive at ground frames to caption them with blip
@@ -151,16 +137,16 @@ if __name__ == "__main__":
                         txt_path = os.path.join(part_path, f'subset_{i}.txt')
                         mp4_path = os.path.join(part_path, f'subset_{i}.mp4')
 
-                        image = read_first_frame(mp4_path)
-                        descr = "" #FIXME caption_image(image, beam_amount, min_length, max_length)
+                        #image = read_first_frame(mp4_path)
+                        #descr = "" # caption_image(image, beam_amount, min_length, max_length)
+
+                        descr = video_llava_gen(mp4_path, video_llava_url, master_llava_prompt)
 
                         with open(txt_path, 'w' if do_clear else 'a', encoding='utf-8') as descr_f:
                             descr_f.write(descr)
 
             except Exception as e:
                 logger.error(e)
-            finally:
-                unload_blip()
 
         if do_textgen:
             t_counter=0
@@ -174,7 +160,7 @@ if __name__ == "__main__":
 
             # going reverse here
             assert max_d-1>0
-            for d in range(range(max_d-1,-1,-1)):
+            for d in range(max_d-1,-1,-1):
                 depth_name = split_video_path
                 for i in range(d):
                     depth_name = os.path.join(depth_name, f'depth_{i}')
@@ -191,14 +177,14 @@ if __name__ == "__main__":
                         if len(peek_d) > 0 and not do_clear:
                             continue
 
-                        next_depth_name = os.path.join(depth_name, f'depth_{d+1}')
+                        next_depth_name = os.path.join(depth_name, f'depth_{d}')
                         next_part_path = os.path.join(next_depth_name, f'part_{i+L*j}') # `i` cause we want to sample each corresponding *subset*
 
                         # depths > 0 are *guaranteed* to have L videos in their part_j folders
                         
                         # now sampling each description at the next level
                         scenes = ''
-                        for k in range(L):
+                        for k in range(L if d > 0 else 1):
                             with open(os.path.join(next_part_path, f'subset_{k}.txt'), 'r', encoding='utf-8') as subdescr:
                                 scenes += subdescr.read() + '\n'
                         
@@ -207,9 +193,9 @@ if __name__ == "__main__":
                         else:
                             prompt = master_scene.replace('%descriptions%', scenes)
                         
-                        textgen_json = {}#{"textgen_url":textgen_url, "textgen_key":textgen_key, "max_new_tokens":max_new_tokens, "temperature":temperature, "top_p":top_p, "typical_p":typical_p, "top_k":top_k, "repetition_penalty":repetition_penalty, "encoder_repetition_penalty":encoder_repetition_penalty, "length_penalty":length_penalty}
+                        textgen_json = {"textgen_url":textgen_url, "textgen_key":textgen_key}#{"max_new_tokens":max_new_tokens, "temperature":temperature, "top_p":top_p, "typical_p":typical_p, "top_k":top_k}
 
-                        descr = textgen(prompt, textgen_json)
+                        descr = textgen(prompt, **textgen_json)
 
                         tq.update(1)
             
@@ -220,17 +206,6 @@ if __name__ == "__main__":
 
             if do_delete:
                 shutil.rmtree(split_video_path)
-
-    # human-friendly image descr regeneration
-    def descr_regen_image(image, beam_amount, min_length, max_length):
-        load_blip()
-        try:
-            text = caption_image(image, beam_amount, min_length, max_length)
-        except Exception as e:
-            logger.error(e)
-        finally:
-            unload_blip()
-        return text
 
     def on_depth_change(d, L, s, a):
         new_s = L**(d-1)-1 if d > 1 else 0
@@ -304,10 +279,10 @@ if __name__ == "__main__":
         with open(action_txt, 'w', encoding='utf-8') as descr_f:
             descr_f.write(descr)
     
-    def descr_regen(init_path, depth, scene, action, beam_amount, min_length, max_length, textgen_url, textgen_key, max_new_tokens, temperature, top_p, typical_p, top_k, repetition_penalty, encoder_repetition_penalty, length_penalty, master_scene, master_synopsis):
-        textgen_json = locals()
-        for i in 'init_path,depth,scene,action,beam_amount,min_length,max_length,master_scene,master_synopsis'.split(','):
-            textgen_json.pop(i)
+    def descr_regen(init_path, depth, scene, action, master_scene, master_synopsis, master_llava_prompt, video_llava_url, textgen_url, textgen_key):
+        #textgen_json = locals()
+        #for i in 'init_path,depth,scene,action,beam_amount,min_length,max_length,master_scene,master_synopsis'.split(','):
+        #    textgen_json.pop(i)
         logger.warning(f'ReWriting video descr at {init_path}, depth {depth}, part {scene}, subset {action}')
 
         assert os.path.exists(init_path) and os.path.isdir(init_path)
@@ -326,9 +301,11 @@ if __name__ == "__main__":
         action_mp4 = os.path.join(path, f'subset_{action}.mp4')
 
         # use BLIP2 for ground frame captioning, use LLMs for upper level
+        # NOTE 1.03.24 - BLIP2 deprecated, using videollava server instead
         if d == max_d:
-            image = read_first_frame(action_mp4)
-            descr = descr_regen_image(image, beam_amount, min_length, max_length)
+            descr = video_llava_gen(action_mp4, video_llava_url, master_llava_prompt)
+            # image = read_first_frame(action_mp4)
+            # descr = descr_regen_image(image, beam_amount, min_length, max_length)
         else:
             next_depth_name = os.path.join(depth_name, f'depth_{d+1}')
             next_part_path = os.path.join(next_depth_name, f'part_{action+L*scene}') # `i` cause we want to sample each corresponding *subset*
@@ -341,12 +318,14 @@ if __name__ == "__main__":
                 with open(os.path.join(next_part_path, f'subset_{k}.txt'), 'r', encoding='utf-8') as subdescr:
                     scenes += subdescr.read() + '\n'
             
+            prompt = master_synopsis.replace('%descriptions%', scenes)
             if d == 0:
                 prompt = master_synopsis.replace('%descriptions%', scenes)
             else:
                 prompt = master_scene.replace('%descriptions%', scenes)
             
-            descr = textgen(prompt, textgen_json)
+            textgen_json = {"textgen_url":textgen_url, "textgen_key":textgen_key}
+            descr = textgen(prompt, **textgen_json)
         
         return descr
 
@@ -383,33 +362,37 @@ if __name__ == "__main__":
                             with gr.Tab(label='Sampling settings'):
                                 gr.Markdown('Todo (see config.json)')
                                 with gr.Row():
-                                    textgen_url = gr.Textbox(label="Textgen URL", value="http://127.0.0.1:5000/v1/chat/completions", interactive=True)
+                                    textgen_url = gr.Textbox(label="Textgen URL", value="http://127.0.0.1:5001/v1/chat/completions", interactive=True)
                                     textgen_key = gr.Textbox(label="API key, if private", value="", interactive=True)
-                                with gr.Row():
-                                    textgen_new_words = gr.Slider(label='Max new words', value=80, step=1, interactive=True, minimum=1, maximum=300)
-                                    textgen_temperature = gr.Slider(label='Temperature (~creativity)', value=0.45, step=0.01, interactive=True, minimum=0, maximum=1.99)
-                                with gr.Row():
-                                    textgen_top_p = gr.Slider(label='Top P', value=1, step=0.01, interactive=True, minimum=0, maximum=1)
-                                    textgen_typical_p = gr.Slider(label='Typical P', value=1, step=0.01, interactive=True, minimum=0, maximum=1)
-                                    textgen_top_k = gr.Slider(label='Top K', value=0, step=1, interactive=True, minimum=0, maximum=100)
-                                with gr.Row():
-                                    textgen_repetition_penalty = gr.Slider(label='Repetition penalty', value=1.15, step=0.01, interactive=True, minimum=0, maximum=2)
-                                    textgen_encoder_repetition_penalty = gr.Slider(label='Repetition penalty', value=1, step=0.01, interactive=True, minimum=0, maximum=2)
-                                    textgen_length_penalty = gr.Slider(label='Length penalty', value=1, step=0.01, interactive=True, minimum=0, maximum=2)
+                                #with gr.Row():
+                                #    textgen_new_words = gr.Slider(label='Max new words', value=80, step=1, interactive=True, minimum=1, maximum=300)
+                                #    textgen_temperature = gr.Slider(label='Temperature (~creativity)', value=0.45, step=0.01, interactive=True, minimum=0, maximum=1.99)
+                                #with gr.Row():
+                                #    textgen_top_p = gr.Slider(label='Top P', value=1, step=0.01, interactive=True, minimum=0, maximum=1)
+                                #    textgen_typical_p = gr.Slider(label='Typical P', value=1, step=0.01, interactive=True, minimum=0, maximum=1)
+                                #    textgen_top_k = gr.Slider(label='Top K', value=0, step=1, interactive=True, minimum=0, maximum=100)
+                                #with gr.Row():
+                                #    textgen_repetition_penalty = gr.Slider(label='Repetition penalty', value=1.15, step=0.01, interactive=True, minimum=0, maximum=2)
+                                #    textgen_encoder_repetition_penalty = gr.Slider(label='Repetition penalty', value=1, step=0.01, interactive=True, minimum=0, maximum=2)
+                                #    textgen_length_penalty = gr.Slider(label='Length penalty', value=1, step=0.01, interactive=True, minimum=0, maximum=2)
                             with gr.Tab(label='Master prompts'):
                                 with gr.Row(variant='compact'):
                                     master_scene = gr.TextArea(label="Scene", lines=5, interactive=True, value=master_scene_default)
                                 with gr.Row(variant='compact'):
                                     master_synopsis = gr.TextArea(label="Synopsis", lines=5, interactive=True, value=master_synopsis_default)
+                                with gr.Row(variant='compact'):
+                                   master_llava_prompt = gr.TextArea(label="VideoLLaVA prompt", lines=5, interactive=True, value=master_llava_default)
                             with gr.Tab(label='Frame captioning'):
-                                gr.Markdown('Frame autocaptioning (BLIP2) settings')
-                                gr.Markdown('Uses bisection for more than 1 prompt/division')
+                                gr.Markdown('Frame autocaptioning (VideoLLAVA) settings')
                                 with gr.Row(variant='compact'):
-                                    autocap_frames = gr.Slider(label='Autocaptioned frames', value=2, step=1, interactive=True, minimum=1, maximum=12) # will be populater with L
-                                    autocap_beam_amount = gr.Slider(label='Beam amount', value=7, step=1, interactive=True, minimum=1, maximum=30)
-                                with gr.Row(variant='compact'):
-                                    autocap_min_words = gr.Slider(label="Min words", minimum=1, maximum=15, value=15, step=1, interactive=True)
-                                    autocap_max_words = gr.Slider(label="Max words", minimum=10, maximum=45, value=30, step=1, interactive=True)
+                                    video_llava_url = gr.Textbox(label="VideoLLaVA server ip", value="http://127.0.0.1:7861/describe")
+                                
+                                # with gr.Row(variant='compact'):
+                                #     autocap_frames = gr.Slider(label='Autocaptioned frames', value=2, step=1, interactive=True, minimum=1, maximum=12) # will be populater with L
+                                #     autocap_beam_amount = gr.Slider(label='Beam amount', value=7, step=1, interactive=True, minimum=1, maximum=30)
+                                # with gr.Row(variant='compact'):
+                                #     autocap_min_words = gr.Slider(label="Min words", minimum=1, maximum=15, value=15, step=1, interactive=True)
+                                #     autocap_max_words = gr.Slider(label="Max words", minimum=10, maximum=45, value=30, step=1, interactive=True)
 
                     with gr.Tab(label='Batch processing'):
                         gr.Markdown('Process a list of .json captioning config files:')
@@ -476,10 +459,10 @@ if __name__ == "__main__":
         # interactions
         descr_depth.change(on_depth_change, inputs=[descr_depth, chop_L, descr_part, descr_subset], outputs=[descr_part, descr_subset])
         descr_load.click(refresh_descr, outputs=[descr_depth, chop_L, descr, keyframes, keyframes_vid64], inputs=[chop_split_path, descr_depth, descr_part, descr_subset])
-        descr_regen_btn.click(descr_regen, inputs=[chop_split_path, descr_depth, descr_part, descr_subset, autocap_beam_amount, autocap_min_words, autocap_max_words, textgen_url, textgen_key, textgen_new_words, textgen_temperature, textgen_top_p, textgen_typical_p, textgen_top_k, textgen_repetition_penalty, textgen_encoder_repetition_penalty, textgen_length_penalty, master_scene, master_synopsis], outputs=[descr])
+        descr_regen_btn.click(descr_regen, inputs=[chop_split_path, descr_depth, descr_part, descr_subset, master_scene, master_synopsis, master_llava_prompt, video_llava_url, textgen_url, textgen_key], outputs=[descr])
         descr_save_btn.click(write_descr, inputs=[descr, chop_split_path, descr_depth, descr_part, descr_subset], outputs=[])
 
         # process
-        do_btn.click(process_video, inputs=[do_chop, do_clear, do_caption, do_textgen, do_export, do_delete, chop_L, chop_whole_vid_path, chop_split_path, chop_trg_path, textgen_url, textgen_key, master_scene, master_synopsis, exp_overwrite_dims, exp_w, exp_h, exp_overwrite_fps, exp_fps])
+        do_btn.click(process_video, inputs=[do_chop, do_clear, do_caption, do_textgen, do_export, do_delete, chop_L, chop_whole_vid_path, chop_split_path, chop_trg_path, textgen_url, textgen_key, master_scene, master_synopsis, exp_overwrite_dims, exp_w, exp_h, exp_overwrite_fps, exp_fps, video_llava_url, master_llava_prompt])
 
     interface.launch(share=args["share"], server_name=args['server_name'], server_port=args['server_port'])

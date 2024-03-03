@@ -1,4 +1,4 @@
-import torch, os, logging, sys, shutil, time
+import torch, os, logging, coloredlogs, sys, shutil, time
 # Don't forget to pip install videollava!
 from videollava.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN
 from videollava.conversation import conv_templates, SeparatorStyle
@@ -11,6 +11,8 @@ from fastapi import FastAPI, Query, Request, UploadFile
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi import HTTPException
+from json import JSONDecodeError
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -28,13 +30,13 @@ if current_directory not in sys.path:
 
 def setup():
     disable_torch_init()
-    cache_dir = 'cache_dir'
+    #cache_dir = 'cache_dir'
     device = 'cuda'
     load_4bit, load_8bit = True, False
     model_path = 'LanguageBind/Video-LLaVA-7B'
 
     model_name = get_model_name_from_path(model_path)
-    tokenizer, model, processor, _ = load_pretrained_model(model_path, None, model_name, load_8bit, load_4bit, device=device, cache_dir=cache_dir)
+    tokenizer, model, processor, _ = load_pretrained_model(model_path, None, model_name, load_8bit, load_4bit, device=device)
     video_processor = processor['video']
 
     return tokenizer, model, video_processor
@@ -46,22 +48,45 @@ def main(port=7681):
     tokenizer, model, video_processor = setup()
     logger.info('Models loaded successfully')
 
-    @app.exception_handler(RequestValidationError)
-    async def validation_exception_handler(request: Request, exc: RequestValidationError):
-        return JSONResponse(
-            status_code=422,
-            content=jsonable_encoder({"detail": exc.errors(), "body": exc.body}),
-        )
+    # @app.exception_handler(RequestValidationError)
+    # async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    #     print(request.json)
+    #     return JSONResponse(
+    #         status_code=422,
+    #         content=jsonable_encoder({"detail": exc.errors(), "body": exc.body}),
+    #     )
+    
+    @app.post('/test')
+    async def test(request: Request):
+        print('We are in /test')
+        content_type = request.headers.get('Content-Type')
+        
+        if content_type is None:
+            raise HTTPException(status_code=400, detail='No Content-Type provided')
+        elif content_type == 'application/json':
+            try:
+                #print(request.json)
+                return await request.json()
+            except JSONDecodeError:
+                raise HTTPException(status_code=400, detail='Invalid JSON data')
+        else:
+            raise HTTPException(status_code=400, detail='Content-Type not supported')
 
     @app.post("/describe")
-    def describe_uploaded_video(prompt: str, video_file: UploadFile):
+    def describe_uploaded_video(file: UploadFile):
+        video_file = file
+        prompt = "Describe this video clip in one sentence. Separate keywords by commas (example: man in a jacket, dancing, singing, blue and orange colors, 80s music video)"
+        print('We are in describe_uploaded_video')
         logger.debug(f'Incoming video {video_file.filename}!')
         filename = "temp."+str(video_file.filename).split('.')[-1]
         try:
             with open(filename, 'wb') as f:
                 shutil.copyfileobj(video_file.file, f)
         except Exception:
-            return {"message": "There was an error uploading the file"}
+            return JSONResponse(
+                status_code=422,
+                content=jsonable_encoder({"message": "There was an error uploading the file"}),
+            )
         finally:
             video_file.file.close()
         
@@ -99,11 +124,14 @@ def main(port=7681):
                 use_cache=True,
                 stopping_criteria=[stopping_criteria])
 
-        reply = tokenizer.decode(output_ids[0, input_ids.shape[1]:]).strip()
+        reply = tokenizer.decode(output_ids[0, input_ids.shape[1]:]).strip().strip('</s>').strip()
 
         logger.debug(f'Description is: {reply}')
 
-        return {"message": reply}
+        return JSONResponse(
+            status_code=200,
+            content=jsonable_encoder({"message": reply}),
+        )
 
     uvicorn.run(app, port=port)
 

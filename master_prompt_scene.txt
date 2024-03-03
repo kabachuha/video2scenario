@@ -1,1 +1,5 @@
-Describe a video scene shortly, but expressively (in two sentences).
+Consider a video consisting of the following clips sequence:
+
+%descriptions%
+
+Write a brief one sentence plot scene description. Separate keywords with commas. (example: man in a jacket, dancing, singing, blue and orange colors, 80s music video)

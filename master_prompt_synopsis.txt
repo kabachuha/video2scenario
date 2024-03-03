@@ -1,3 +1,5 @@
-Write a brief synopsis for a film consisting of the following scenes:
+Consider a video consisting of the following scenes:
 
 %descriptions%
+
+Write a brief one sentence plot synopsis. (example for The Lord of the Rings: 2000s fantasy movie, an epic quest to destroy a One Ring, which binds Sauron, by throwing it into the fiery chasm Mount Doom, while a fellowship of nine individuals journey together to confront the power of the One Ring and defeat its dark lord Sauron)

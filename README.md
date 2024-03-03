@@ -4,7 +4,7 @@ Forms a tree-like folder dataset with L parts at the lowest level.
 
 Then recursively writes descriptions of scenes with Large Language Models and Image Captioning Models.
 
-The lowest level clips are [captioned with BLIP2](https://github.com/ExponentialML/Video-BLIP2-Preprocessor). Support for multimodal models such as LLaVa is planned.
+The lowest level clips are [captioned with VideoLLaVA](https://github.com/PKU-YuanGroup/Video-LLaVA).
 
 The descriptions are gathered in a list and then the LLM is asked to describe the overall scene. Then the process continutes until the top level.
 

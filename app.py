@@ -162,7 +162,7 @@ if __name__ == "__main__":
             assert max_d-1>0
             for d in range(max_d-1,-1,-1):
                 depth_name = split_video_path
-                for i in range(d):
+                for i in range(d if d > 0 else 1):
                     depth_name = os.path.join(depth_name, f'depth_{i}')
                 for j in range(L**(d-1) if d > 2 else 1):
                     part_path = os.path.join(depth_name, f'part_{j}')
@@ -177,7 +177,7 @@ if __name__ == "__main__":
                         if len(peek_d) > 0 and not do_clear:
                             continue
 
-                        next_depth_name = os.path.join(depth_name, f'depth_{d}')
+                        next_depth_name = os.path.join(depth_name, f'depth_{d if d > 0 else 1}')
                         next_part_path = os.path.join(next_depth_name, f'part_{i+L*j}') # `i` cause we want to sample each corresponding *subset*
 
                         # depths > 0 are *guaranteed* to have L videos in their part_j folders
@@ -196,6 +196,9 @@ if __name__ == "__main__":
                         textgen_json = {"textgen_url":textgen_url, "textgen_key":textgen_key}#{"max_new_tokens":max_new_tokens, "temperature":temperature, "top_p":top_p, "typical_p":typical_p, "top_k":top_k}
 
                         descr = textgen(prompt, **textgen_json)
+
+                        with open(txt_path, 'w', encoding='utf-8') as descr_f:
+                            descr_f.write(descr)
 
                         tq.update(1)
             

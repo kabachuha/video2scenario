@@ -6,13 +6,19 @@ import requests, json
 from torch.autograd import variable
 from video_chop import chop_video
 from chops_to_folder_dataset import move_the_files, calculate_depth, read_first_frame, read_all_frames
-import time, logging, coloredlogs
+import time, logging, coloredlogs, random, math
 import os, cv2
 from base64 import b64encode
 import torch, gc
 from PIL import Image
 import shutil
-from tqdm import tqdm    
+from tqdm import tqdm
+
+def do_seed(seed):
+    if seed == -1:
+        random.seed(time.time())
+    else:
+        random.seed(seed)
 
 # Gradio interface setup if launching as an app
 
@@ -108,9 +114,10 @@ if __name__ == "__main__":
     with open('master_prompt_llava.txt', 'r', encoding='utf-8') as cfg_file:
         master_llava_default = cfg_file.read()
     
-    def process_video(do_chop, do_clear, do_caption, do_textgen, do_export, do_delete, chop_L, input_video_path, split_video_path, dataset_path, textgen_url, textgen_key, master_scene, master_synopsis, exp_overwrite_dims, exp_w, exp_h, exp_overwrite_fps, exp_fps, video_llava_url, master_llava_prompt):
+    def process_video(do_chop, do_clear, do_caption, do_textgen, do_export, do_delete, chop_L, input_video_path, split_video_path, dataset_path, textgen_url, textgen_key, leaves_dropout_factor, seed, master_scene, master_synopsis, exp_overwrite_dims, exp_w, exp_h, exp_overwrite_fps, exp_fps, video_llava_url, master_llava_prompt):
         L = chop_L
         logger.info(f'Processing video at {input_video_path}')
+        do_seed(seed)
 
         #chop video
         if do_chop:
@@ -132,18 +139,25 @@ if __name__ == "__main__":
                     depth_name = os.path.join(depth_name, f'depth_{i}')
                 for j in range(L**(max_d-1) if max_d > 1 else 1):
                     part_path = os.path.join(depth_name, f'part_{j}')
+                    amount_of_completions = 0
+
                     # sample the text info for the next subset
-                    for i in range(L if max_d > 0 else 1):
-                        txt_path = os.path.join(part_path, f'subset_{i}.txt')
-                        mp4_path = os.path.join(part_path, f'subset_{i}.mp4')
+                    subset_len = L if max_d > 0 else 1
+                    for i in range(subset_len):
+                        if random.uniform(0, 1) <= leaves_dropout_factor**max_d \
+                            or amount_of_completions == 0 and i >= math.floor(subset_len / 4) and i <= math.ceil(3*subset_len / 4): # or always caption in the middle
 
-                        #image = read_first_frame(mp4_path)
-                        #descr = "" # caption_image(image, beam_amount, min_length, max_length)
+                            txt_path = os.path.join(part_path, f'subset_{i}.txt')
+                            mp4_path = os.path.join(part_path, f'subset_{i}.mp4')
 
-                        descr = video_llava_gen(mp4_path, video_llava_url, master_llava_prompt)
+                            #image = read_first_frame(mp4_path)
+                            #descr = "" # caption_image(image, beam_amount, min_length, max_length)
 
-                        with open(txt_path, 'w' if do_clear else 'a', encoding='utf-8') as descr_f:
-                            descr_f.write(descr)
+                            descr = video_llava_gen(mp4_path, video_llava_url, master_llava_prompt)
+
+                            with open(txt_path, 'w' if do_clear else 'a', encoding='utf-8') as descr_f:
+                                descr_f.write(descr)
+                            amount_of_completions += 1
 
             except Exception as e:
                 logger.error(e)
@@ -166,8 +180,10 @@ if __name__ == "__main__":
                     depth_name = os.path.join(depth_name, f'depth_{i}')
                 for j in range(L**(d-1) if d > 2 else 1):
                     part_path = os.path.join(depth_name, f'part_{j}')
-                        # sample the text info for the next subset
-                    for i in range(L if d > 1 else 1):
+                    amount_of_completions = 0
+                    # sample the text info for the next subset
+                    subset_len = L if d > 1 else 1
+                    for i in range(subset_len):
                         txt_path = os.path.join(part_path, f'subset_{i}.txt')
                         mp4_path = os.path.join(part_path, f'subset_{i}.mp4')
                         tq.set_description(f'Depth {d}, part {j}, subset{i}')
@@ -176,29 +192,36 @@ if __name__ == "__main__":
                             peek_d = descr_f.read()
                         if len(peek_d) > 0 and not do_clear:
                             continue
-
-                        next_depth_name = os.path.join(depth_name, f'depth_{d if d > 0 else 1}')
-                        next_part_path = os.path.join(next_depth_name, f'part_{i+L*j}') # `i` cause we want to sample each corresponding *subset*
-
-                        # depths > 0 are *guaranteed* to have L videos in their part_j folders
                         
-                        # now sampling each description at the next level
-                        scenes = ''
-                        for k in range(L):
-                            with open(os.path.join(next_part_path, f'subset_{k}.txt'), 'r', encoding='utf-8') as subdescr:
-                                scenes += subdescr.read() + '\n'
-                        
-                        if d == 0:
-                            prompt = master_synopsis.replace('%descriptions%', scenes)
-                        else:
-                            prompt = master_scene.replace('%descriptions%', scenes)
-                        
-                        textgen_json = {"textgen_url":textgen_url, "textgen_key":textgen_key}#{"max_new_tokens":max_new_tokens, "temperature":temperature, "top_p":top_p, "typical_p":typical_p, "top_k":top_k}
+                        if random.uniform(0, 1) <= leaves_dropout_factor**d \
+                            or amount_of_completions == 0 and i >= math.floor(subset_len / 4) and i <= math.ceil(3*subset_len / 4): # or always caption in the middle
+                            next_depth_name = os.path.join(depth_name, f'depth_{d if d > 0 else 1}')
+                            next_part_path = os.path.join(next_depth_name, f'part_{i+L*j}') # `i` cause we want to sample each corresponding *subset*
 
-                        descr = textgen(prompt, **textgen_json)
+                            # depths > 0 are *guaranteed* to have L videos in their part_j folders
+                            
+                            # now sampling each description at the next level
+                            scenes = ''
+                            for k in range(L):
+                                subset_path = os.path.join(next_part_path, f'subset_{k}.txt')
+                                if os.path.exists(subset_path):
+                                    with open(subset_path, 'r', encoding='utf-8') as subdescr:
+                                        scenes += subdescr.read() + '\n'
+                                else:
+                                    if leaves_dropout_factor == 1:
+                                        raise Exception('Previous level subset was not generated while the dropout factor is 1!')
+                            
+                            if d == 0:
+                                prompt = master_synopsis.replace('%descriptions%', scenes)
+                            else:
+                                prompt = master_scene.replace('%descriptions%', scenes)
+                            
+                            textgen_json = {"textgen_url":textgen_url, "textgen_key":textgen_key}#{"max_new_tokens":max_new_tokens, "temperature":temperature, "top_p":top_p, "typical_p":typical_p, "top_k":top_k}
 
-                        with open(txt_path, 'w', encoding='utf-8') as descr_f:
-                            descr_f.write(descr)
+                            descr = textgen(prompt, **textgen_json)
+
+                            with open(txt_path, 'w', encoding='utf-8') as descr_f:
+                                descr_f.write(descr)
 
                         tq.update(1)
             
@@ -285,7 +308,8 @@ if __name__ == "__main__":
         with open(action_txt, 'w', encoding='utf-8') as descr_f:
             descr_f.write(descr)
     
-    def descr_regen(init_path, depth, scene, action, master_scene, master_synopsis, master_llava_prompt, video_llava_url, textgen_url, textgen_key):
+    def descr_regen(init_path, depth, scene, action, master_scene, master_synopsis, master_llava_prompt, video_llava_url, textgen_url, textgen_key, leaves_dropout_factor, seed):
+
         #textgen_json = locals()
         #for i in 'init_path,depth,scene,action,beam_amount,min_length,max_length,master_scene,master_synopsis'.split(','):
         #    textgen_json.pop(i)
@@ -321,8 +345,13 @@ if __name__ == "__main__":
             # now sampling each description at the next level
             scenes = ''
             for k in range(L):
-                with open(os.path.join(next_part_path, f'subset_{k}.txt'), 'r', encoding='utf-8') as subdescr:
-                    scenes += subdescr.read() + '\n'
+                subset_path = os.path.join(next_part_path, f'subset_{k}.txt')
+                if os.path.exists(subset_path):
+                    with open(subset_path, 'r', encoding='utf-8') as subdescr:
+                        scenes += subdescr.read() + '\n'
+                else:
+                    if leaves_dropout_factor == 1:
+                        raise Exception('some subparts are absent while no dropout is set!')
             
             prompt = master_synopsis.replace('%descriptions%', scenes)
             if d == 0:
@@ -418,9 +447,10 @@ if __name__ == "__main__":
                         keyframes_vid64 = gr.Video(value=None, interactive=False)
                     with gr.Tab(id=1, label="Video splitter"):
                         with gr.Row(variant='compact'):
-                            chop_skip_frames = gr.Slider(label='How many frames to drop from source', value=0, step=0.02, interactive=True, minimum=0, maximum=0.99)
+                            leaves_dropout_factor = gr.Slider(label='Leaves to remain at each level^D', value=0, step=0.8, interactive=True, minimum=0, maximum=1)
                         # L / path to video
                             chop_L = gr.Number(label="L (each level division number)", value=12, precision=0, interactive=True)
+                            seed = gr.Number(label="Seed for dropout", value=-1, precision=0, interactive=True)
                         with gr.Row(variant='compact'):
                             # splitted video folderpath
                             chop_whole_vid_path = gr.Textbox(label="Path to the whole video, if not splitted yet", interactive=True)
@@ -465,10 +495,10 @@ if __name__ == "__main__":
         # interactions
         descr_depth.change(on_depth_change, inputs=[descr_depth, chop_L, descr_part, descr_subset], outputs=[descr_part, descr_subset])
         descr_load.click(refresh_descr, outputs=[descr_depth, chop_L, descr, keyframes, keyframes_vid64], inputs=[chop_split_path, descr_depth, descr_part, descr_subset])
-        descr_regen_btn.click(descr_regen, inputs=[chop_split_path, descr_depth, descr_part, descr_subset, master_scene, master_synopsis, master_llava_prompt, video_llava_url, textgen_url, textgen_key], outputs=[descr])
+        descr_regen_btn.click(descr_regen, inputs=[chop_split_path, descr_depth, descr_part, descr_subset, master_scene, master_synopsis, master_llava_prompt, video_llava_url, textgen_url, textgen_key, leaves_dropout_factor, seed], outputs=[descr])
         descr_save_btn.click(write_descr, inputs=[descr, chop_split_path, descr_depth, descr_part, descr_subset], outputs=[])
 
         # process
-        do_btn.click(process_video, inputs=[do_chop, do_clear, do_caption, do_textgen, do_export, do_delete, chop_L, chop_whole_vid_path, chop_split_path, chop_trg_path, textgen_url, textgen_key, master_scene, master_synopsis, exp_overwrite_dims, exp_w, exp_h, exp_overwrite_fps, exp_fps, video_llava_url, master_llava_prompt])
+        do_btn.click(process_video, inputs=[do_chop, do_clear, do_caption, do_textgen, do_export, do_delete, chop_L, chop_whole_vid_path, chop_split_path, chop_trg_path, textgen_url, textgen_key, leaves_dropout_factor, seed, master_scene, master_synopsis, exp_overwrite_dims, exp_w, exp_h, exp_overwrite_fps, exp_fps, video_llava_url, master_llava_prompt])
 
     interface.launch(share=args["share"], server_name=args['server_name'], server_port=args['server_port'])

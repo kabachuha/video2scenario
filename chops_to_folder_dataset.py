@@ -69,7 +69,11 @@ def calculate_depth(init_path):
             L = len(os.listdir(os.path.join(init_path, 'depth_0', 'depth_1', 'depth_2', 'part_0'))) // 2
             return d, L
 
-def move_the_files(init_path, folder_dataset_path, L, depth, overwrite_dims, width, height, overwrite_fps, fps):
+def peek(txt_path):
+    with open(txt_path, 'r', encoding='utf-8') as f:
+        return f.read()
+
+def move_the_files(init_path, folder_dataset_path, L, depth, overwrite_dims, width, height, overwrite_fps, fps, copy_if_empty = False):
 
     os.mkdir(folder_dataset_path)
     depth_name = init_path
@@ -102,8 +106,9 @@ def move_the_files(init_path, folder_dataset_path, L, depth, overwrite_dims, wid
                 if overwrite_fps:
                     fps = get_fps(os.path.join(next_part_path, f'subset_{0}.mp4'))
                 
-                write_as_video(os.path.join(folder_dataset_path, f'depth_{d}_part_{j}_subset{i+L*j}.mp4'), L_frames, overwrite_dims, width, height, fps)
-                shutil.copy(txt_path, os.path.join(folder_dataset_path, f'depth_{d}_part_{j}_subset{i+L*j}.txt'))
+                if len(peek(txt_path)) > 0 or copy_if_empty:
+                    write_as_video(os.path.join(folder_dataset_path, f'depth_{d}_part_{j}_subset{i+L*j}.mp4'), L_frames, overwrite_dims, width, height, fps)
+                    shutil.copy(txt_path, os.path.join(folder_dataset_path, f'depth_{d}_part_{j}_subset{i+L*j}.txt'))
 
                 tq.set_description(f'Depth {d}, part {j}, subset{i}')
                 #tq.set_description(os.path.join(next_part_path, f'subset_{0}.mp4'))
@@ -118,8 +123,9 @@ def move_the_files(init_path, folder_dataset_path, L, depth, overwrite_dims, wid
             txt_path = os.path.join(part_path, f'subset_{i}.txt')
             mp4_path = os.path.join(part_path, f'subset_{i}.mp4')
 
-            write_as_video(os.path.join(folder_dataset_path, f'depth_{d}_part_{j}_subset{i+L*j}.mp4'), read_all_frames(mp4_path), overwrite_dims, width, height, fps)
-            shutil.copy(txt_path, os.path.join(folder_dataset_path, f'depth_{d}_part_{j}_subset{i+L*j}.txt'))
+            if len(peek(txt_path)) > 0 or copy_if_empty:
+                write_as_video(os.path.join(folder_dataset_path, f'depth_{d}_part_{j}_subset{i+L*j}.mp4'), read_all_frames(mp4_path), overwrite_dims, width, height, fps)
+                shutil.copy(txt_path, os.path.join(folder_dataset_path, f'depth_{d}_part_{j}_subset{i+L*j}.txt'))
             tq.set_description(f'Depth {d}, part {j}, subset{i}')
             tq.update(1)
     tq.close() 

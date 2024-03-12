@@ -1,6 +1,7 @@
 # Copyright (C) 2023 by Artem Khrapov (kabachuha)
 # Read LICENSE for usage terms.
 
+from typing import Union
 import requests, json
 
 from torch.autograd import variable
@@ -500,5 +501,73 @@ if __name__ == "__main__":
 
         # process
         do_btn.click(process_video, inputs=[do_chop, do_clear, do_caption, do_textgen, do_export, do_delete, chop_L, chop_whole_vid_path, chop_split_path, chop_trg_path, textgen_url, textgen_key, leaves_dropout_factor, seed, master_scene, master_synopsis, exp_overwrite_dims, exp_w, exp_h, exp_overwrite_fps, exp_fps, video_llava_url, master_llava_prompt])
+
+    if 'api' in args:
+        api_port = args["api_port"]
+        import uvicorn, fire
+        from typing import Union, Any, Dict, List
+        from fastapi import FastAPI, Query, Request, UploadFile
+        from fastapi.encoders import jsonable_encoder
+        from fastapi.exceptions import RequestValidationError
+        from fastapi.responses import JSONResponse
+        from fastapi import HTTPException
+        from json import JSONDecodeError
+        from concurrent.futures import ThreadPoolExecutor
+        app = FastAPI()
+
+        api_executor = ThreadPoolExecutor(max_workers=1) # concurrency locked to 1
+        submitted_jobs: Dict[str, Any] = {}
+
+        @app.post("/process")
+        def describe_uploaded_video(dataset_id:str, file: UploadFile, chop_L: int, do_chop: bool = True, do_clear: bool = True, do_caption: bool = True, do_textgen: bool = True, do_export: bool = True, do_delete: bool = True, chop_split_path: Union[str, None] = None, chop_trg_path: Union[str, None] = None, textgen_url: Union[str, None] = None, textgen_key: Union[str, None] = None, leaves_dropout_factor: float = 1.0, seed: int = -1, master_scene: Union[str, None] = None, master_synopsis: Union[str, None] = None, exp_overwrite_dims: bool = False, exp_w: int = 512, exp_h: int = 288, exp_overwrite_fps: bool = False, exp_fps: int = 12, video_llava_url: Union[str, None] = None, master_llava_prompt: Union[str, None] = None):
+
+            video_file = file
+            logger.debug(f'Incoming video {video_file.filename}!')
+            filename = "temp."+str(video_file.filename).split('.')[-1]
+            try:
+                with open(filename, 'wb') as f:
+                    shutil.copyfileobj(video_file.file, f)
+            except Exception:
+                return JSONResponse(
+                    status_code=422,
+                    content=jsonable_encoder({"message": "There was an error uploading the file"}),
+                )
+            finally:
+                video_file.file.close()
+
+            if textgen_url is None:
+                textgen_url = "http://127.0.0.1:5001/v1/chat/completions"
+            if textgen_key is None:
+                textgen_key = ""
+            
+            if master_scene is None:
+                master_scene = master_scene_default
+            if master_synopsis is None:
+                master_synopsis = master_synopsis_default
+            if master_llava_prompt is None:
+                master_llava_prompt = master_llava_default
+            if video_llava_url is None:
+                master_llava_prompt = "http://127.0.0.1:7861/describe"
+
+            # chop_whole_vid_path Where to copy
+            # chop_trg_path
+            # chop_split_path
+
+            chop_whole_vid_path = filename
+
+            chop_split_path = os.path.join(os.getcwd(), 'datasets', 'splits', dataset_id)
+            chop_trg_path = os.path.join(os.getcwd(), 'datasets', 'exported', dataset_id)
+            
+            os.makedirs(chop_split_path, exist_ok=True)
+            os.makedirs(chop_trg_path, exist_ok=True)
+
+            def submit_wrapper(dataset_id, *args, **kwargs):
+                logger.info(f'Starting job {dataset_id}!')
+                process_video(*args, **kwargs)
+                logger.info(f'Job {dataset_id} completed!')
+
+            future = api_executor.submit(lambda: submit_wrapper(dataset_id, do_chop, do_clear, do_caption, do_textgen, do_export, do_delete, chop_L, chop_whole_vid_path, chop_split_path, chop_trg_path, textgen_url, textgen_key, leaves_dropout_factor, seed, master_scene, master_synopsis, exp_overwrite_dims, exp_w, exp_h, exp_overwrite_fps, exp_fps, video_llava_url, master_llava_prompt))
+        
+        uvicorn.run(app, port=api_port)
 
     interface.launch(share=args["share"], server_name=args['server_name'], server_port=args['server_port'])
